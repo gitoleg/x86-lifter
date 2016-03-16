@@ -13,7 +13,7 @@ let arch = `x86_64
 let disasm data =
   Bigstring.of_string (String.strip data) |>
   Memory.create LittleEndian null >>= fun mem ->
-  Dis.create ~backend:"llvm" (Arch.to_string arch) >>|
+  Dis.with_disasm ~backend:"llvm" (Arch.to_string arch) ~f:return >>|
   Dis.store_asm >>| Dis.store_kinds >>| fun dis ->
   Dis.run dis mem ~return:ident ~init:()
     ~stopped:(fun s () ->

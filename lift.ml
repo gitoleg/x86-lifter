@@ -48,6 +48,9 @@ module Lifter (Target : Target) = struct
     process [] insns
 end
 
+module IA32 = (val target_of_arch `x86)
+
+module AMD64 = (val target_of_arch `x86_64)
 
 module X32 = Lifter(IA32)
 module X64 = Lifter(AMD64)
