@@ -1,7 +1,7 @@
 open Core_kernel.Std
 open Bap.Std
-open Types
-
+open X86types
+open X86_cpu
 
 let gr = Bil.var
 let low n r = Bil.(cast low n (var r))
@@ -10,7 +10,7 @@ let l16 = low 16
 let l32 = low 32
 let h8 r = Bil.(extract 8 15 (var r))
 
-module Env(CPU : X86) = struct
+module X86env(CPU : X86) = struct
   open CPU
 
   let var (reg : any) = match reg with
@@ -61,8 +61,9 @@ let reg_from_dis typ reg = typ (Sexp.of_string (Reg.name reg))
 let reg_from_dis32 = reg_from_dis any32_of_sexp
 let reg_from_dis64 = reg_from_dis any64_of_sexp
 
-module X32 = Env(IA32.CPU)
-module X64 = Env(AMD64.CPU)
+
+module X32 = X86env(IA32)
+module X64 = X86env(AMD64)
 
 let real32 (r : any32) = X32.var (r :> any64)
 let real64 = X64.var

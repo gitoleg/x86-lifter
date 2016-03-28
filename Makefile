@@ -1,0 +1,2 @@
+all:
+	bapbuild main.native

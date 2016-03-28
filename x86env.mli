@@ -1,6 +1,6 @@
 open Core_kernel.Std
 open Bap.Std
-open Types
+open X86types
 
 val reg_from_dis32 : reg -> any32
 val reg_from_dis64 : reg -> any64

@@ -1,6 +1,6 @@
 open Core_kernel.Std
 open Bap.Std
-open Types
+open X86types
 open Opcode
 
 module Dis = Disasm_expert.Basic
@@ -26,8 +26,8 @@ module Reg (Target : Target) = struct
 
   let reg width x =
     let x = match width with
-      | 64 -> Env.(reg64 (reg_from_dis64 x))
-      | 32 -> Env.(reg32 (reg_from_dis32 x))
+      | 64 -> X86env.(reg64 (reg_from_dis64 x))
+      | 32 -> X86env.(reg32 (reg_from_dis32 x))
       | _  -> invalid_arg "Btx.reg: expect (32 | 64)" in
     Bil.(x mod (width %: width))
 
@@ -43,10 +43,10 @@ module Reg (Target : Target) = struct
   let set how width reg typ x =
     let exp, set =
       let lhs,rhs = match width with
-        | 64 -> let r = Env.reg_from_dis64 reg in
-          Env.(real64 r, reg64 r)
-        | 32 -> let r = Env.reg_from_dis32 reg in
-          Env.(real32 r, reg32 r)
+        | 64 -> let r = X86env.reg_from_dis64 reg in
+          X86env.(real64 r, reg64 r)
+        | 32 -> let r = X86env.reg_from_dis32 reg in
+          X86env.(real32 r, reg32 r)
         | _ -> invalid_arg "Btx.set: expect (32 | 64)" in
       match how with
       | None -> rhs, []
