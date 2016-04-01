@@ -1,16 +1,17 @@
 open Core_kernel.Std
 open Bap.Std
 open Or_error
+open X86env
+open X86types
 
 module Dis = Disasm_expert.Basic
 
 type lifter = (mem * Dis.full_insn) list -> bil Or_error.t list
 
-
-module Lifter (Target : Target) = struct
+module Lifter (Target : Target) (Env : Env) = struct
   open Target
 
-  module Btx = Btx.Reg(Target)
+  module Btx = Btx.Reg(Target) (Env)
 
   type obil = bil Or_error.t
 
@@ -49,7 +50,8 @@ module Lifter (Target : Target) = struct
 end
 
 let lifter_of_arch arch =
-  let module X86Target =
+  let module Target =
     (val target_of_arch (arch : Arch.x86 :> arch)) in
-  let module X86Lifter = Lifter(X86Target) in
-  X86Lifter.lift_insns
+  let module Env = (val env_of_arch arch) in
+  let module Lifter = Lifter(Target)(Env) in
+  Lifter.lift_insns

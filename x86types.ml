@@ -1,48 +1,57 @@
 open Bap.Std
 
-type low8 = [`AL | `DL | `CL | `BL ] [@@deriving sexp]
-type high = [`AH | `DH | `CH | `BH ] [@@deriving sexp]
-type low16 = [ `AX | `BX | `CX | `DX | `BP | `SP | `SI | `DI] [@@deriving sexp]
-
-type x64_low8 = [`SIL | `DIL | `BPL | `SPL ] [@@deriving sexp]
-type r8  = [`R8B | `R9B | `R10B | `R11B | `R12B | `R13B | `R14B | `R15B] [@@deriving sexp]
-type r16 = [`R8W | `R9W | `R10W | `R11W | `R12W | `R13W | `R14W | `R15W] [@@deriving sexp]
-type r32 = [`R8D | `R9D | `R10D | `R11D | `R12D | `R13D | `R14D | `R15D] [@@deriving sexp]
-
-type reg32 = [
-  | `EAX
-  | `EDX
-  | `ECX
-  | `EBX
-  | `ESI
-  | `EDI
-  | `EBP
-  | `ESP
+(** 8-bit low byte GPR registers *)
+type r8l = [
+  | `AL | `BL | `CL | `DL
+  | `SIL | `DIL | `BPL | `SPL
+  | `R8B | `R9B | `R10B | `R11B
+  | `R12B | `R13B | `R14B | `R15B
 ] [@@deriving sexp]
 
-type reg64 = [
-  | `RAX
-  | `RDX
-  | `RCX
-  | `RBX
-  | `RSI
-  | `RDI
-  | `RBP
-  | `RSP
-  | `R8
-  | `R9
-  | `R10
-  | `R11
-  | `R12
-  | `R13
-  | `R14
-  | `R15
+(** 8-bit high-byte GPR registers *)
+type r8h = [`AH | `BH | `CH | `DH ] [@@deriving sexp]
+
+(** all 8 bit GPR registers *)
+type r8 = [r8l | r8h] [@@deriving sexp]
+
+(** 16-bit GPR registers *)
+type r16 = [
+  |`AX | `BX | `CX | `DX
+  | `DI | `SI | `BP | `SP
+  | `R8W | `R9W | `R10W | `R11W
+  | `R12W | `R13W | `R14W | `R15W
 ] [@@deriving sexp]
 
-type pseudo32 = [low8 | high | low16] [@@deriving sexp]
-type any32 = [ pseudo32 | reg32] [@@deriving sexp]
-type pseudo64 = [any32 | x64_low8 | r8 | r16 | r32 ] [@@deriving sexp]
-type any64 = [pseudo64 | reg64] [@@deriving sexp]
-type any = any64  [@@deriving sexp]
+(** 32-bit GPR registers *)
+type r32 = [
+  | `EAX | `EBX | `ECX | `EDX
+  | `EDI | `ESI | `EBP | `ESP
+  | `R8D | `R9D | `R10D | `R11D
+  | `R12D | `R13D | `R14D | `R15D
+] [@@deriving sexp]
 
-module type X86 = module type of X86_cpu.AMD64
+(** 64-bit GPR registers *)
+type r64 = [
+  | `RAX | `RBX | `RCX | `RDX
+  | `RDI | `RSI | `RBP | `RSP
+  | `R8 | `R9 | `R10 | `R11
+  | `R12 | `R13 | `R14 | `R15
+] [@@deriving sexp]
+
+type x86reg = [
+  | r8
+  | r16
+  | r32
+  | r64
+] [@@deriving sexp]
+
+module type Env = sig
+  val of_reg : reg -> x86reg
+  val var : x86reg -> var
+  val size : [`r32 | `r64] Size.p (* GPR size *)
+  val width : x86reg -> size
+  val bitwidth : x86reg -> int
+  val get : x86reg -> exp
+  val set : x86reg -> exp -> stmt
+end
+

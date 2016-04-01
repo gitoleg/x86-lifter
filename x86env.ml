@@ -1,71 +1,109 @@
 open Core_kernel.Std
 open Bap.Std
 open X86types
-open X86_cpu
 
-let gr = Bil.var
-let low n r = Bil.(cast low n (var r))
-let l8 = low 8
-let l16 = low 16
-let l32 = low 32
-let h8 r = Bil.(extract 8 15 (var r))
+exception Unreachable_reg of (Arch.x86 * x86reg)
 
-module X86env(CPU : X86) = struct
-  open CPU
+let unreachable_reg arch x86reg =
+  raise (Unreachable_reg (arch, x86reg))
 
-  let var (reg : any) = match reg with
-    | `AL | `AH | `AX | `EAX | `RAX -> rax
-    | `DL | `DH | `DX | `EDX | `RDX -> rdx
-    | `CL | `CH | `CX | `ECX | `RCX -> rcx
-    | `BL | `BH | `BX | `EBX | `RBX -> rbx
-    | `DIL | `DI | `EDI | `RDI -> rdi
-    | `BPL | `BP | `EBP | `RBP -> rbp
-    | `SPL | `SP | `ESP | `RSP -> rsp
-    | `SIL | `SI | `ESI | `RSI -> rsi
-    | `R8B | `R8W | `R8D | `R8 -> r.(8)
-    | `R9B | `R9W | `R9D | `R9 -> r.(9)
-    | `R10B | `R10W | `R10D | `R10 -> r.(10)
-    | `R11B | `R11W | `R11D | `R11 -> r.(11)
-    | `R12B | `R12W | `R12D | `R12 -> r.(12)
-    | `R13B | `R13W | `R13D | `R13 -> r.(13)
-    | `R14B | `R14W | `R14D | `R14 -> r.(14)
-    | `R15B | `R15W | `R15D | `R15 -> r.(15)
-
-  let exp (code : any64) = match code with
-    | `AL -> l8 rax | `AH -> h8 rax | `AX -> l16 rax | `EAX -> l32 rax
-    | `DL -> l8 rdx | `DH -> h8 rdx | `DX -> l16 rdx | `EDX -> l32 rdx
-    | `CL -> l8 rcx | `CH -> h8 rcx | `CX -> l16 rcx | `ECX -> l32 rcx
-    | `BL -> l8 rbx | `BH -> h8 rbx | `BX -> l16 rbx | `EBX -> l32 rbx
-    | `DIL -> l8 rdi | `DI -> l16 rdi | `EDI -> l32 rdi
-    | `BPL -> l8 rbp | `BP -> l16 rbp | `EBP -> l32 rbp
-    | `SPL -> l8 rsp | `SP -> l16 rsp | `ESP -> l32 rsp
-    | `SIL -> l8 rsi | `SI -> l16 rsi | `ESI -> l32 rsi
-    | `R8B -> l8 r.(8) | `R8W -> l16 r.(8) | `R8D -> l32 r.(8)
-    | `R9B -> l8 r.(9) | `R9W -> l16 r.(9) | `R9D -> l32 r.(9)
-    | `R10B -> l8 r.(10) | `R10W -> l16 r.(10) | `R10D -> l32 r.(10)
-    | `R11B -> l8 r.(11) | `R11W -> l16 r.(11) | `R11D -> l32 r.(11)
-    | `R12B -> l8 r.(12) | `R12W -> l16 r.(12) | `R12D -> l32 r.(12)
-    | `R13B -> l8 r.(13) | `R13W -> l16 r.(13) | `R13D -> l32 r.(13)
-    | `R14B -> l8 r.(14) | `R14W -> l16 r.(14) | `R14D -> l32 r.(14)
-    | `R15B -> l8 r.(15) | `R15W -> l16 r.(15) | `R15D -> l32 r.(15)
-    | `RAX -> gr rax | `RDX -> gr rdx | `RCX -> gr rcx | `RBX -> gr rbx
-    | `RDI -> gr rdi | `RBP -> gr rbp | `RSP -> gr rsp | `RSI -> gr rsi
-    | `R8 -> gr r.(8)   | `R9 -> gr r.(9)
-    | `R10 -> gr r.(10) | `R11 -> gr r.(11)
-    | `R12 -> gr r.(12) | `R13 -> gr r.(13)
-    | `R14 -> gr r.(14) | `R15 -> gr r.(15)
-
+module type X86CPU = sig
+ type regs = private [< x86reg]
+ val arch : Arch.x86
+ val avaliable : x86reg -> bool
+ include module type of X86_cpu.AMD64
 end
 
-let reg_from_dis typ reg = typ (Sexp.of_string (Reg.name reg))
-let reg_from_dis32 = reg_from_dis any32_of_sexp
-let reg_from_dis64 = reg_from_dis any64_of_sexp
+module Make(CPU : X86CPU) : Env = struct
+  let of_reg reg =
+    Reg.name reg |>
+    Sexp.of_string |>
+    x86reg_of_sexp |>
+    fun r -> match CPU.avaliable r with
+    | true -> r
+    | false -> unreachable_reg CPU.arch r
 
+  let var = function
+    | `AL | `AH | `AX | `EAX | `RAX -> CPU.rax
+    | `DL | `DH | `DX | `EDX | `RDX -> CPU.rdx
+    | `CL | `CH | `CX | `ECX | `RCX -> CPU.rcx
+    | `BL | `BH | `BX | `EBX | `RBX -> CPU.rbx
+    | `DIL | `DI | `EDI | `RDI -> CPU.rdi
+    | `BPL | `BP | `EBP | `RBP -> CPU.rbp
+    | `SPL | `SP | `ESP | `RSP -> CPU.rsp
+    | `SIL | `SI | `ESI | `RSI -> CPU.rsi
+    | `R8B | `R8W | `R8D | `R8 -> CPU.r.(0)
+    | `R9B | `R9W | `R9D | `R9 -> CPU.r.(1)
+    | `R10B | `R10W | `R10D | `R10 -> CPU.r.(2)
+    | `R11B | `R11W | `R11D | `R11 -> CPU.r.(3)
+    | `R12B | `R12W | `R12D | `R12 -> CPU.r.(4)
+    | `R13B | `R13W | `R13D | `R13 -> CPU.r.(5)
+    | `R14B | `R14W | `R14D | `R14 -> CPU.r.(6)
+    | `R15B | `R15W | `R15D | `R15 -> CPU.r.(7)
 
-module X32 = X86env(IA32)
-module X64 = X86env(AMD64)
+  let size = match CPU.arch with `x86 -> `r32 | `x86_64 -> `r64
 
-let real32 (r : any32) = X32.var (r :> any64)
-let real64 = X64.var
-let reg32 (r : any32) = X32.exp (r :> any64)
-let reg64 = X64.exp
+  let width = function
+    | #r8 -> `r8
+    | #r16 -> `r16
+    | #r32 -> `r32
+    | #r64 -> `r64
+
+  let bitwidth x86reg = width x86reg |> Size.in_bits
+
+  let bitsize = size |> Size.in_bits
+
+  let bvar r = var r |> Bil.var
+
+  let get r =
+    let v = bvar r in
+    match r, CPU.arch with
+    | #r8h, _ -> Bil.(extract ~hi:8 ~lo:15 v)
+    | #r8l, _ | #r16, _ | #r32, `x86_64 ->
+      Bil.(cast low (bitwidth r) v)
+    | #r32, `x86 | #r64, _ -> v
+
+  let set r e =
+    let lhs = var r in
+    let rhs =
+      let v = bvar r in
+      match r, CPU.arch with
+      | #r8h, _ ->
+        let hp = bitsize - 16 in
+        Bil.((cast high hp v) ^ e ^ (cast low 8 v))
+      | #r8l, _ | #r16, _ | #r32, `x86_64 ->
+        let hp = bitsize - bitwidth r in
+        Bil.((cast high hp v) ^ e)
+      | #r32, `x86 | #r64, _ -> v in
+    Bil.(lhs := rhs)
+end
+
+module IA32CPU : X86CPU = struct
+ type regs = [
+  | `AL | `BL | `CL | `DL
+  | `AH | `BH | `CH | `DH
+  | `AX | `BX | `CX | `DX
+  | `DI | `SI | `BP | `SP
+  | `EAX | `EBX | `ECX | `EDX
+  | `EDI | `ESI | `EBP | `ESP
+ ]
+
+ let arch = `x86
+ let avaliable = function
+   | #regs -> true
+   | _ -> false
+ include X86_cpu.IA32
+end
+
+module AMD64CPU : X86CPU = struct
+ type regs = x86reg
+ let arch = `x86
+ let avaliable = function
+   | #regs -> true
+   | _ -> false
+ include X86_cpu.AMD64
+end
+
+let env_of_arch = function
+  | `x86 -> (module Make(IA32CPU) : Env)
+  | `x86_64 -> (module Make(AMD64CPU) : Env)
