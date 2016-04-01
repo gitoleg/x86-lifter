@@ -23,7 +23,7 @@ let disasm data =
           | (mem,None) ->
             printf "Disasm failed: @.%a@." Memory.pp mem; None
           | (mem,Some insn) -> Some (mem,insn)) |>
-      Lift.x64 |>
+      Lift.lifter_of_arch arch |>
       List.iter ~f:(function
           | Error err -> printf "Lifter failed: @.%a@." Error.pp err
           | Ok bil -> printf "%a@." Bil.pp bil) |>
