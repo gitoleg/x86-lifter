@@ -12,12 +12,14 @@ module Lifter (Target : Target) (Env : Env) = struct
   open Target
 
   module Btx = Btx.Reg(Target) (Env)
-
+  module Movx = Movx.Reg(Env)
   type obil = bil Or_error.t
 
   let lift mem insn = match Decode.opcode insn with
     | Some (#Opcode.btx_reg as op) ->
       Ok (Btx.lift op (Dis.Insn.ops insn))
+    | Some (#Opcode.movx as op) ->
+      Ok (Movx.lift op (Dis.Insn.ops insn))
     | Some op -> Ok [Bil.special "unsupported instruction"]
     | None -> lift mem insn
 

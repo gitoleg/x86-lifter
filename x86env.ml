@@ -74,7 +74,7 @@ module Make(CPU : X86CPU) : Env = struct
       | #r8l, _ | #r16, _ | #r32, `x86_64 ->
         let hp = bitsize - bitwidth r in
         Bil.((cast high hp v) ^ e)
-      | #r32, `x86 | #r64, _ -> v in
+      | #r32, `x86 | #r64, _ -> e in
     Bil.(lhs := rhs)
 end
 
@@ -97,7 +97,7 @@ end
 
 module AMD64CPU : X86CPU = struct
  type regs = x86reg
- let arch = `x86
+ let arch = `x86_64
  let avaliable = function
    | #regs -> true
    | _ -> false

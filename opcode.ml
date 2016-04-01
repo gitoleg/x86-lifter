@@ -126,7 +126,27 @@ type btx_mem = [bt_mem | btc_mem | btr_mem | bts_mem ] [@@deriving sexp]
 
 type btx = [btx_reg | btx_mem] [@@deriving sexp]
 
-type t = btx [@@deriving sexp]
+type movx_rr = [
+  | `MOV8rr
+  | `MOV16rr
+  | `MOV32rr
+  | `MOV64rr
+] [@@deriving sexp]
+
+type movx_ri = [
+  | `MOV8ri
+  | `MOV16ri
+  | `MOV32ri
+  | `MOV64ri
+  | `MOV64ri32
+] [@@deriving sexp]
+
+type movx = [
+  | movx_rr
+  | movx_ri
+] [@@deriving sexp]
+
+type t = [btx | movx] [@@deriving sexp]
 
 type prefix = [
   | `LOCK_PREFIX
