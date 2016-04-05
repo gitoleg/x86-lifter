@@ -11,15 +11,16 @@ type lifter = (mem * Dis.full_insn) list -> bil Or_error.t list
 module Lifter (Target : Target) (Env : Env) = struct
   open Target
 
-  module Btx = Btx.Reg(Target) (Env)
-  module Movx = Movx.Reg(Env)
+  module Btx = Btx.Reg(Target.CPU) (Env)
+  module Movx = Movx.Reg(Target.CPU) (Env)
   type obil = bil Or_error.t
 
   let lift mem insn = match Decode.opcode insn with
     | Some (#Opcode.btx_reg as op) ->
       Ok (Btx.lift op (Dis.Insn.ops insn))
     | Some (#Opcode.movx as op) ->
-      Ok (Movx.lift op (Dis.Insn.ops insn))
+      Or_error.try_with (fun () ->
+          Movx.lift op (Dis.Insn.ops insn))
     | Some op -> Ok [Bil.special "unsupported instruction"]
     | None -> lift mem insn
 

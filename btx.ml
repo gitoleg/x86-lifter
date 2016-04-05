@@ -9,8 +9,7 @@ module Dis = Disasm_expert.Basic
 module type S = module type of Bil
 
 
-module Reg (Target : Target)(Env : Env) = struct
-  module CPU = Target.CPU
+module Reg (CPU : CPU) (Env : Env) = struct
 
   let zero = Word.of_int64 0L
   let one width = Word.of_int64 ~width 1L

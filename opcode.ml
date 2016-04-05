@@ -141,9 +141,25 @@ type movx_ri = [
   | `MOV64ri32
 ] [@@deriving sexp]
 
+type movx_rm = [
+  | `MOV8rm
+  | `MOV16rm
+  | `MOV32rm
+  | `MOV64rm
+] [@@deriving sexp]
+
+type movx_mr = [
+  | `MOV8mr
+  | `MOV16mr
+  | `MOV32mr
+  | `MOV64mr
+] [@@deriving sexp]
+
 type movx = [
   | movx_rr
   | movx_ri
+  | movx_rm
+  | movx_mr
 ] [@@deriving sexp]
 
 type t = [btx | movx] [@@deriving sexp]

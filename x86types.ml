@@ -39,6 +39,7 @@ type r64 = [
 ] [@@deriving sexp]
 
 type x86reg = [
+  | `Nil (* a special case, when no register value specify *)
   | r8
   | r16
   | r32
@@ -53,5 +54,10 @@ module type Env = sig
   val bitwidth : x86reg -> int
   val get : x86reg -> exp
   val set : x86reg -> exp -> stmt
+  val addr : seg:x86reg
+    -> base:x86reg
+    -> scale:int
+    -> index:x86reg
+    -> disp:int -> exp
 end
 

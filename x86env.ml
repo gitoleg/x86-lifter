@@ -2,10 +2,20 @@ open Core_kernel.Std
 open Bap.Std
 open X86types
 
-exception Unreachable_reg of (Arch.x86 * x86reg)
+exception Unreachable_reg of (Arch.x86 * x86reg) [@@deriving sexp]
+exception Unreachable_var of (Arch.x86 * x86reg) [@@deriving sexp]
+exception Invalid_addr of (Arch.x86 * x86reg * x86reg 
+                           * int * x86reg * int) [@@deriving sexp]
+
 
 let unreachable_reg arch x86reg =
   raise (Unreachable_reg (arch, x86reg))
+
+let unreachable_var arch x86reg =
+  raise (Unreachable_var (arch, x86reg))
+
+let invalid_addr arch ~seg ~base ~scale ~index ~disp =
+  raise (Invalid_addr (arch, seg, base, scale, index, disp))
 
 module type X86CPU = sig
  type regs = private [< x86reg]
@@ -16,14 +26,15 @@ end
 
 module Make(CPU : X86CPU) : Env = struct
   let of_reg reg =
-    Reg.name reg |>
-    Sexp.of_string |>
-    x86reg_of_sexp |>
-    fun r -> match CPU.avaliable r with
-    | true -> r
-    | false -> unreachable_reg CPU.arch r
+    match Reg.name reg |>
+          Sexp.of_string |>
+          x86reg_of_sexp with
+    | `Nil -> `Nil
+    | r when CPU.avaliable r -> r
+    | r -> unreachable_reg CPU.arch r
 
   let var = function
+    | `Nil as r -> unreachable_var CPU.arch r
     | `AL | `AH | `AX | `EAX | `RAX -> CPU.rax
     | `DL | `DH | `DX | `EDX | `RDX -> CPU.rdx
     | `CL | `CH | `CX | `ECX | `RCX -> CPU.rcx
@@ -44,6 +55,7 @@ module Make(CPU : X86CPU) : Env = struct
   let size = match CPU.arch with `x86 -> `r32 | `x86_64 -> `r64
 
   let width = function
+    | `Nil as r -> unreachable_reg CPU.arch r
     | #r8 -> `r8
     | #r16 -> `r16
     | #r32 -> `r32
@@ -58,6 +70,7 @@ module Make(CPU : X86CPU) : Env = struct
   let get r =
     let v = bvar r in
     match r, CPU.arch with
+    | `Nil, _ -> unreachable_reg CPU.arch r
     | #r8h, _ -> Bil.(extract ~hi:8 ~lo:15 v)
     | #r8l, _ | #r16, _ | #r32, `x86_64 ->
       Bil.(cast low (bitwidth r) v)
@@ -75,18 +88,67 @@ module Make(CPU : X86CPU) : Env = struct
         let hp = bitsize - bitwidth r in
         Bil.((cast high hp v) ^ e)
       | #r32, `x86_64 -> Bil.(cast unsigned bitsize e)
-      | #r32, `x86 | #r64, _ -> e in
+      | #r32, `x86 | #r64, `x86_64 -> e
+      | _ -> unreachable_reg CPU.arch r in
     Bil.(lhs := rhs)
+
+  let addr_size = Arch.addr_size (CPU.arch :> arch)
+
+  let addr_bitsize = addr_size |> Size.in_bits
+
+  let addr ~seg ~base ~scale ~index ~disp =
+    let invalid_addr () =
+      invalid_addr CPU.arch ~seg ~base ~scale ~index ~disp in
+    let regval r =
+      match r, CPU.arch with
+      | #r8, _
+      | #r16, _
+      | #r32, `x86_64 ->
+        let v = get r in
+        Bil.(cast unsigned addr_bitsize v)
+      | #r32, `x86
+      | #r64, `x86_64 -> get r
+      | _ ->  invalid_addr () in
+    let base = regval base in
+    let scale =
+      let make_scale value =
+        Word.of_int ~width:2 value |> Bil.int |> Option.some in
+      match scale with
+      | 1 -> None
+      | 2 -> make_scale 1
+      | 4 -> make_scale 2
+      | 8 -> make_scale 3
+      | _ -> invalid_addr () in
+    let index = match index with
+      | `Nil -> None
+      | _ -> regval index |> Option.some in
+    let disp =
+      match disp with
+      | 0 -> None
+      | _ -> Word.of_int ~width:addr_bitsize disp |>
+             Bil.int |> Option.some in
+    let addr =
+      base |>
+      (fun a -> match scale, index with
+         | Some s, Some i -> Bil.(a + (i lsl s))
+         | None, Some i -> Bil.(a + i)
+         | _, None -> a) |>
+      (fun a -> match disp with
+         | None -> a
+         | Some d -> Bil.(a + d)) in
+    match seg with
+    | `Nil -> addr
+    | _ -> invalid_addr () (*segment memory model not implemented yet*)
 end
 
 module IA32CPU : X86CPU = struct
  type regs = [
-  | `AL | `BL | `CL | `DL
-  | `AH | `BH | `CH | `DH
-  | `AX | `BX | `CX | `DX
-  | `DI | `SI | `BP | `SP
-  | `EAX | `EBX | `ECX | `EDX
-  | `EDI | `ESI | `EBP | `ESP
+   | `AL | `BL | `CL | `DL
+   | `AH | `BH | `CH | `DH
+   | `AX | `BX | `CX | `DX
+   | `DI | `SI | `BP | `SP
+   | `EAX | `EBX | `ECX | `EDX
+   | `EDI | `ESI | `EBP | `ESP
  ]
 
  let arch = `x86
@@ -97,7 +159,13 @@ module IA32CPU : X86CPU = struct
 end
 
 module AMD64CPU : X86CPU = struct
- type regs = x86reg
+ type regs = [
+  | r8
+  | r16
+  | r32
+  | r64
+ ]
+
  let arch = `x86_64
  let avaliable = function
    | #regs -> true
