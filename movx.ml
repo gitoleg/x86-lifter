@@ -50,8 +50,6 @@ module Reg (CPU : CPU) (Env : Env)= struct
     Env.set dst value
 
   let movx_mi op seg base scale index disp src =
-    let addr = Env.addr ~seg ~base ~scale ~index ~disp in
-
     let imm size =
       word_of_imm ~width:size src |> Bil.int,
       Size.of_int_exn size in
@@ -63,19 +61,16 @@ module Reg (CPU : CPU) (Env : Env)= struct
       | `MOV8mi -> imm 8
       | `MOV16mi -> imm 16
       | `MOV32mi -> imm 32 in
-    Bil.(CPU.mem := store ~mem:(var CPU.mem) ~addr data
-             LittleEndian size)
+    Env.store ~seg ~base ~scale ~index ~disp size data
 
   let movx_rm op dst seg base scale index disp =
-    let addr = Env.addr ~seg ~base ~scale ~index ~disp in
     match op, dst with
     | `MOV8rm, #r8
     | `MOV16rm, #r16
     | `MOV32rm, #r32
     | `MOV64rm, #r64 ->
-      let mem = Bil.var CPU.mem in
       let size = Env.width dst in
-      Bil.(load ~mem ~addr LittleEndian size) |>
+      Env.load ~seg ~base ~scale ~index ~disp size |>
       Env.set dst
     | _ -> mov_errorf "MOVx.movx_rm %s %%%s:%d(%%%s, %%%s, %d), %%%s"
              (sexp_of_movx_rm op |> Sexp.to_string)
@@ -87,16 +82,14 @@ module Reg (CPU : CPU) (Env : Env)= struct
              (sexp_of_x86reg dst |> Sexp.to_string)
 
   let movx_mr op seg base scale index disp src =
-    let addr = Env.addr ~seg ~base ~scale ~index ~disp in
     match op, src with
     | `MOV8mr, #r8
     | `MOV16mr, #r16
     | `MOV32mr, #r32
     | `MOV64mr, #r64 ->
-      let mem = Bil.var CPU.mem in
       let data = Env.get src in
       let size = Env.width src in
-      Bil.(CPU.mem := store ~mem ~addr data LittleEndian size)
+      Env.store ~seg ~base ~scale ~index ~disp size data
     | _ -> mov_errorf "MOVx.movx_mr %s %%%s, %%%s:%d(%%%s, %%%s, %d)"
              (sexp_of_x86reg src |> Sexp.to_string)
              (sexp_of_movx_mr op |> Sexp.to_string)

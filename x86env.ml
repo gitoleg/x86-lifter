@@ -139,6 +139,16 @@ module Make(CPU : X86CPU) : Env = struct
     match seg with
     | `Nil -> addr
     | _ -> invalid_addr () (*segment memory model not implemented yet*)
+
+    let load ~seg ~base ~scale ~index ~disp size =
+      let addr = addr ~seg ~base ~scale ~index ~disp in
+      let mem = Bil.var CPU.mem in
+      Bil.load ~mem ~addr LittleEndian size
+
+    let store ~seg ~base ~scale ~index ~disp size data =
+      let addr = addr ~seg ~base ~scale ~index ~disp in
+      let mem = Bil.var CPU.mem in
+      Bil.(CPU.mem := store ~mem ~addr data LittleEndian size)
 end
 
 module IA32CPU : X86CPU = struct

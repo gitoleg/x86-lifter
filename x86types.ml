@@ -59,5 +59,15 @@ module type Env = sig
     -> scale:int
     -> index:x86reg
     -> disp:int -> exp
+  val load : seg:x86reg
+    -> base:x86reg
+    -> scale:int
+    -> index:x86reg
+    -> disp:int -> size -> exp
+  val store : seg:x86reg
+    -> base:x86reg
+    -> scale:int
+    -> index:x86reg
+    -> disp:int -> size -> exp -> stmt
 end
 
