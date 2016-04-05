@@ -71,9 +71,10 @@ module Make(CPU : X86CPU) : Env = struct
       | #r8h, _ ->
         let hp = bitsize - 16 in
         Bil.((cast high hp v) ^ e ^ (cast low 8 v))
-      | #r8l, _ | #r16, _ | #r32, `x86_64 ->
+      | #r8l, _ | #r16, _ ->
         let hp = bitsize - bitwidth r in
         Bil.((cast high hp v) ^ e)
+      | #r32, `x86_64 -> Bil.(cast unsigned bitsize e)
       | #r32, `x86 | #r64, _ -> e in
     Bil.(lhs := rhs)
 end
