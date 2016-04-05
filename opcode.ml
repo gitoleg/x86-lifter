@@ -141,6 +141,13 @@ type movx_ri = [
   | `MOV64ri32
 ] [@@deriving sexp]
 
+type movx_mi = [
+  | `MOV8mi
+  | `MOV16mi
+  | `MOV32mi
+  | `MOV64mi32
+] [@@deriving sexp]
+
 type movx_rm = [
   | `MOV8rm
   | `MOV16rm
@@ -158,6 +165,7 @@ type movx_mr = [
 type movx = [
   | movx_rr
   | movx_ri
+  | movx_mi
   | movx_rm
   | movx_mr
 ] [@@deriving sexp]

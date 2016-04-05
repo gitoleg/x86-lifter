@@ -49,7 +49,23 @@ module Reg (CPU : CPU) (Env : Env)= struct
              (sexp_of_x86reg dst |> Sexp.to_string) in
     Env.set dst value
 
-  
+  let movx_mi op seg base scale index disp src =
+    let addr = Env.addr ~seg ~base ~scale ~index ~disp in
+
+    let imm size =
+      word_of_imm ~width:size src |> Bil.int,
+      Size.of_int_exn size in
+    let data, size =
+      match op with
+      | `MOV64mi32 -> word_of_imm ~width:32 src |>
+                      Bil.int |>
+                      Bil.(cast signed 64), `r64
+      | `MOV8mi -> imm 8
+      | `MOV16mi -> imm 16
+      | `MOV32mi -> imm 32 in
+    Bil.(CPU.mem := store ~mem:(var CPU.mem) ~addr data
+             LittleEndian size)
+
   let movx_rm op dst seg base scale index disp =
     let addr = Env.addr ~seg ~base ~scale ~index ~disp in
     match op, dst with
@@ -131,6 +147,19 @@ module Reg (CPU : CPU) (Env : Env)= struct
           (Env.of_reg index)
           (disp |> Imm.to_int |> Option.value_exn)
           (Env.of_reg src) ]
+    | #movx_mi as op, [| Op.Reg base;
+                         Op.Imm scale;
+                         Op.Reg index;
+                         Op.Imm disp;
+                         Op.Reg seg;
+                         Op.Imm src |] ->
+      [ movx_mi op (Env.of_reg seg)
+          (Env.of_reg base)
+          (scale |> Imm.to_int |> Option.value_exn)
+          (Env.of_reg index)
+          (disp |> Imm.to_int |> Option.value_exn)
+          src ]
+
     | _ -> mov_errorf
              "Movx.lift unknown %s instruction with operands %s"
              (sexp_of_movx op |> Sexp.to_string)
