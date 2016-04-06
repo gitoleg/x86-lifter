@@ -25,130 +25,149 @@ module type X86CPU = sig
 end
 
 module Make(CPU : X86CPU) : Env = struct
-  let of_reg reg =
-    match Reg.name reg |>
-          Sexp.of_string |>
-          x86reg_of_sexp with
-    | `Nil -> `Nil
-    | r when CPU.avaliable r -> r
-    | r -> unreachable_reg CPU.arch r
+  module RR = struct
+    let of_reg reg =
+      match Reg.name reg |>
+            Sexp.of_string |>
+            x86reg_of_sexp with
+      | `Nil -> `Nil
+      | r when CPU.avaliable r -> r
+      | r -> unreachable_reg CPU.arch r
 
-  let var = function
-    | `Nil as r -> unreachable_var CPU.arch r
-    | `AL | `AH | `AX | `EAX | `RAX -> CPU.rax
-    | `DL | `DH | `DX | `EDX | `RDX -> CPU.rdx
-    | `CL | `CH | `CX | `ECX | `RCX -> CPU.rcx
-    | `BL | `BH | `BX | `EBX | `RBX -> CPU.rbx
-    | `DIL | `DI | `EDI | `RDI -> CPU.rdi
-    | `BPL | `BP | `EBP | `RBP -> CPU.rbp
-    | `SPL | `SP | `ESP | `RSP -> CPU.rsp
-    | `SIL | `SI | `ESI | `RSI -> CPU.rsi
-    | `R8B | `R8W | `R8D | `R8 -> CPU.r.(0)
-    | `R9B | `R9W | `R9D | `R9 -> CPU.r.(1)
-    | `R10B | `R10W | `R10D | `R10 -> CPU.r.(2)
-    | `R11B | `R11W | `R11D | `R11 -> CPU.r.(3)
-    | `R12B | `R12W | `R12D | `R12 -> CPU.r.(4)
-    | `R13B | `R13W | `R13D | `R13 -> CPU.r.(5)
-    | `R14B | `R14W | `R14D | `R14 -> CPU.r.(6)
-    | `R15B | `R15W | `R15D | `R15 -> CPU.r.(7)
+    let var = function
+      | `Nil as r -> unreachable_var CPU.arch r
+      | `AL | `AH | `AX | `EAX | `RAX -> CPU.rax
+      | `DL | `DH | `DX | `EDX | `RDX -> CPU.rdx
+      | `CL | `CH | `CX | `ECX | `RCX -> CPU.rcx
+      | `BL | `BH | `BX | `EBX | `RBX -> CPU.rbx
+      | `DIL | `DI | `EDI | `RDI -> CPU.rdi
+      | `BPL | `BP | `EBP | `RBP -> CPU.rbp
+      | `SPL | `SP | `ESP | `RSP -> CPU.rsp
+      | `SIL | `SI | `ESI | `RSI -> CPU.rsi
+      | `R8B | `R8W | `R8D | `R8 -> CPU.r.(0)
+      | `R9B | `R9W | `R9D | `R9 -> CPU.r.(1)
+      | `R10B | `R10W | `R10D | `R10 -> CPU.r.(2)
+      | `R11B | `R11W | `R11D | `R11 -> CPU.r.(3)
+      | `R12B | `R12W | `R12D | `R12 -> CPU.r.(4)
+      | `R13B | `R13W | `R13D | `R13 -> CPU.r.(5)
+      | `R14B | `R14W | `R14D | `R14 -> CPU.r.(6)
+      | `R15B | `R15W | `R15D | `R15 -> CPU.r.(7)
 
-  let size = match CPU.arch with `x86 -> `r32 | `x86_64 -> `r64
+    let size = match CPU.arch with `x86 -> `r32 | `x86_64 -> `r64
 
-  let width = function
-    | `Nil as r -> unreachable_reg CPU.arch r
-    | #r8 -> `r8
-    | #r16 -> `r16
-    | #r32 -> `r32
-    | #r64 -> `r64
+    let width = function
+      | `Nil as r -> unreachable_reg CPU.arch r
+      | #r8 -> `r8
+      | #r16 -> `r16
+      | #r32 -> `r32
+      | #r64 -> `r64
 
-  let bitwidth x86reg = width x86reg |> Size.in_bits
+    let bitwidth x86reg = width x86reg |> Size.in_bits
 
-  let bitsize = size |> Size.in_bits
+    let bitsize = size |> Size.in_bits
 
-  let bvar r = var r |> Bil.var
+    let bvar r = var r |> Bil.var
 
-  let get r =
-    let v = bvar r in
-    match r, CPU.arch with
-    | `Nil, _ -> unreachable_reg CPU.arch r
-    | #r8h, _ -> Bil.(extract ~hi:8 ~lo:15 v)
-    | #r8l, _ | #r16, _ | #r32, `x86_64 ->
-      Bil.(cast low (bitwidth r) v)
-    | #r32, `x86 | #r64, _ -> v
-
-  let set r e =
-    let lhs = var r in
-    let rhs =
+    let get r =
       let v = bvar r in
       match r, CPU.arch with
-      | #r8h, _ ->
-        let hp = bitsize - 16 in
-        Bil.((cast high hp v) ^ e ^ (cast low 8 v))
-      | #r8l, _ | #r16, _ ->
-        let hp = bitsize - bitwidth r in
-        Bil.((cast high hp v) ^ e)
-      | #r32, `x86_64 -> Bil.(cast unsigned bitsize e)
-      | #r32, `x86 | #r64, `x86_64 -> e
-      | _ -> unreachable_reg CPU.arch r in
-    Bil.(lhs := rhs)
+      | `Nil, _ -> unreachable_reg CPU.arch r
+      | #r8h, _ -> Bil.(extract ~hi:8 ~lo:15 v)
+      | #r8l, _ | #r16, _ | #r32, `x86_64 ->
+        Bil.(cast low (bitwidth r) v)
+      | #r32, `x86 | #r64, _ -> v
 
-  let addr_size = Arch.addr_size (CPU.arch :> arch)
+    let set r e =
+      let lhs = var r in
+      let rhs =
+        let v = bvar r in
+        match r, CPU.arch with
+        | #r8h, _ ->
+          let hp = bitsize - 16 in
+          Bil.((cast high hp v) ^ e ^ (cast low 8 v))
+        | #r8l, _ | #r16, _ ->
+          let hp = bitsize - bitwidth r in
+          Bil.((cast high hp v) ^ e)
+        | #r32, `x86_64 -> Bil.(cast unsigned bitsize e)
+        | #r32, `x86 | #r64, `x86_64 -> e
+        | _ -> unreachable_reg CPU.arch r in
+      Bil.(lhs := rhs)
+  end
 
-  let addr_bitsize = addr_size |> Size.in_bits
+  module MM = struct
+    type t = {
+      seg : x86reg;
+      base : x86reg;
+      scale : int;
+      index : x86reg;
+      disp : int;
+    } [@@ deriving fields]
 
-  let addr ~seg ~base ~scale ~index ~disp =
-    let invalid_addr () =
-      invalid_addr CPU.arch ~seg ~base ~scale ~index ~disp in
-    let regval r =
-      match r, CPU.arch with
-      | #r8, _
-      | #r16, _
-      | #r32, `x86_64 ->
-        let v = get r in
-        Bil.(cast unsigned addr_bitsize v)
-      | #r32, `x86
-      | #r64, `x86_64 -> get r
-      | _ ->  invalid_addr () in
-    let base = regval base in
-    let scale =
-      let make_scale value =
-        Word.of_int ~width:2 value |> Bil.int |> Option.some in
-      match scale with
-      | 1 -> None
-      | 2 -> make_scale 1
-      | 4 -> make_scale 2
-      | 8 -> make_scale 3
-      | _ -> invalid_addr () in
-    let index = match index with
-      | `Nil -> None
-      | _ -> regval index |> Option.some in
-    let disp =
-      match disp with
-      | 0 -> None
-      | _ -> Word.of_int ~width:addr_bitsize disp |>
-             Bil.int |> Option.some in
-    let addr =
-      base |>
-      (fun a -> match scale, index with
-         | Some s, Some i -> Bil.(a + (i lsl s))
-         | None, Some i -> Bil.(a + i)
-         | _, None -> a) |>
-      (fun a -> match disp with
-         | None -> a
-         | Some d -> Bil.(a + d)) in
-    match seg with
-    | `Nil -> addr
-    | _ -> invalid_addr () (*segment memory model not implemented yet*)
+    let from_addr ~seg ~base ~scale ~index ~disp =
+      Fields.create ~seg:(RR.of_reg seg)
+        ~base:(RR.of_reg base)
+        ~scale:(Imm.to_int scale |> Option.value_exn)
+        ~index:(RR.of_reg index)
+        ~disp:(Imm.to_int disp |> Option.value_exn)
 
-    let load ~seg ~base ~scale ~index ~disp size =
-      let addr = addr ~seg ~base ~scale ~index ~disp in
+    let addr_size = Arch.addr_size (CPU.arch :> arch)
+
+    let addr_bitsize = addr_size |> Size.in_bits
+
+    let addr {seg; base; scale; index; disp} =
+      let invalid_addr () =
+        invalid_addr CPU.arch ~seg ~base ~scale ~index ~disp in
+      let regval r =
+        match r, CPU.arch with
+        | #r8, _
+        | #r16, _
+        | #r32, `x86_64 ->
+          let v = RR.get r in
+          Bil.(cast unsigned addr_bitsize v)
+        | #r32, `x86
+        | #r64, `x86_64 -> RR.get r
+        | _ ->  invalid_addr () in
+      let base = regval base in
+      let scale =
+        let make_scale value =
+          Word.of_int ~width:2 value |> Bil.int |> Option.some in
+        match scale with
+        | 1 -> None
+        | 2 -> make_scale 1
+        | 4 -> make_scale 2
+        | 8 -> make_scale 3
+        | _ -> invalid_addr () in
+      let index = match index with
+        | `Nil -> None
+        | _ -> regval index |> Option.some in
+      let disp =
+        match disp with
+        | 0 -> None
+        | _ -> Word.of_int ~width:addr_bitsize disp |>
+               Bil.int |> Option.some in
+      let addr =
+        base |>
+        (fun a -> match scale, index with
+           | Some s, Some i -> Bil.(a + (i lsl s))
+           | None, Some i -> Bil.(a + i)
+           | _, None -> a) |>
+        (fun a -> match disp with
+           | None -> a
+           | Some d -> Bil.(a + d)) in
+      match seg with
+      | `Nil -> addr
+      | _ -> invalid_addr () (*segment memory model not implemented yet*)
+
+    let load t size =
+      let addr = addr t in
       let mem = Bil.var CPU.mem in
       Bil.load ~mem ~addr LittleEndian size
 
-    let store ~seg ~base ~scale ~index ~disp size data =
-      let addr = addr ~seg ~base ~scale ~index ~disp in
+    let store t size data =
+      let addr = addr t in
       let mem = Bil.var CPU.mem in
       Bil.(CPU.mem := store ~mem ~addr data LittleEndian size)
+  end
 end
 
 module IA32CPU : X86CPU = struct

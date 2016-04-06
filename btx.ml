@@ -10,7 +10,7 @@ module type S = module type of Bil
 
 
 module Reg (CPU : CPU) (Env : Env) = struct
-
+  open Env
   let zero = Word.of_int64 0L
   let one width = Word.of_int64 ~width 1L
 
@@ -28,7 +28,7 @@ module Reg (CPU : CPU) (Env : Env) = struct
 
   let reg width x =
     let x = match width with
-      | 32 | 64 -> Env.of_reg x |> Env.get
+      | 32 | 64 -> RR.of_reg x |> RR.get
       | _ -> invalid_arg "Btx.reg : expect (32 | 64)" in
     Bil.(x mod (width %: width))
 
@@ -44,8 +44,8 @@ module Reg (CPU : CPU) (Env : Env) = struct
   let set how width reg typ x =
     let exp, set =
       let lhs,rhs = match width with
-        | 32 | 64 -> let r = Env.of_reg reg in
-          Env.(var r, get r)
+        | 32 | 64 -> let r = RR.of_reg reg in
+          RR.(var r, get r)
         | _ -> invalid_arg "Btx.set: expect (32 | 64)" in
       match how with
       | None -> rhs, []

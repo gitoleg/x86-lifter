@@ -47,27 +47,29 @@ type x86reg = [
 ] [@@deriving sexp]
 
 module type Env = sig
-  val of_reg : reg -> x86reg
-  val var : x86reg -> var
-  val size : [`r32 | `r64] Size.p (* GPR size *)
-  val width : x86reg -> size
-  val bitwidth : x86reg -> int
-  val get : x86reg -> exp
-  val set : x86reg -> exp -> stmt
-  val addr : seg:x86reg
-    -> base:x86reg
-    -> scale:int
-    -> index:x86reg
-    -> disp:int -> exp
-  val load : seg:x86reg
-    -> base:x86reg
-    -> scale:int
-    -> index:x86reg
-    -> disp:int -> size -> exp
-  val store : seg:x86reg
-    -> base:x86reg
-    -> scale:int
-    -> index:x86reg
-    -> disp:int -> size -> exp -> stmt
+  (** Register representation *)
+  module RR : sig
+    val of_reg : reg -> x86reg
+    val var : x86reg -> var
+    val size : [`r32 | `r64] Size.p (* GPR size *)
+    val width : x86reg -> size
+    val bitwidth : x86reg -> int
+    val get : x86reg -> exp
+    val set : x86reg -> exp -> stmt
+  end
+
+  (** Memory model *)
+  module MM : sig
+    type t
+    val from_addr : seg:reg
+      -> base:reg
+      -> scale:imm
+      -> index:reg
+      -> disp:imm -> t
+
+    val addr : t -> exp
+    val load : t -> size -> exp
+    val store : t -> size -> exp -> stmt
+  end
 end
 
