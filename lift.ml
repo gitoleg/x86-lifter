@@ -8,6 +8,17 @@ module Dis = Disasm_expert.Basic
 
 type lifter = (mem * Dis.full_insn) list -> bil Or_error.t list
 
+let pp_ops fmt =
+  Array.iter ~f:(fun op ->
+      Format.fprintf fmt "@[%a@ @]" Op.pp op)
+
+let pp_insn fmt insn =
+  Format.fprintf fmt "@[%s => %s(%a)@]"
+    (Dis.Insn.asm insn)
+    (Dis.Insn.name insn)
+    pp_ops
+    (Dis.Insn.ops insn)
+
 module Lifter (Target : Target) (Env : Env) = struct
   open Target
 
@@ -15,14 +26,21 @@ module Lifter (Target : Target) (Env : Env) = struct
   module Movx = Movx.Reg(Target.CPU) (Env)
   type obil = bil Or_error.t
 
-  let lift mem insn = match Decode.opcode insn with
-    | Some (#Opcode.btx_reg as op) ->
-      Ok (Btx.lift op (Dis.Insn.ops insn))
-    | Some (#Opcode.movx as op) ->
-      Or_error.try_with (fun () ->
-          Movx.lift op (Dis.Insn.ops insn))
-    | Some op -> Ok [Bil.special "unsupported instruction"]
-    | None -> lift mem insn
+  let lift mem insn =
+    try
+      match Decode.opcode insn with
+      | Some (#Opcode.btx_reg as op) ->
+        Ok (Btx.lift op (Dis.Insn.ops insn))
+      | Some (#Opcode.movx as op) ->
+        Ok (Movx.lift op (Dis.Insn.ops insn))
+      | Some op ->
+        Dis.Insn.asm insn |>
+        Or_error.errorf "unsupported instruction %s"
+      | None -> lift mem insn
+    with exn -> Format.asprintf "%a: %a"
+                  pp_insn insn
+                  Exn.pp exn |>
+                Or_error.error_string
 
   let lift_insns insns : obil list =
     let rec process acc = function
