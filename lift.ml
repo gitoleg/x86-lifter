@@ -1,12 +1,7 @@
 open Core_kernel.Std
 open Bap.Std
-open Or_error
-open X86env
-open X86types
 
 module Dis = Disasm_expert.Basic
-
-type lifter = (mem * Dis.full_insn) list -> bil Or_error.t list
 
 let pp_ops fmt =
   Array.iter ~f:(fun op ->
@@ -19,30 +14,18 @@ let pp_insn fmt insn =
     pp_ops
     (Dis.Insn.ops insn)
 
-module Lifter (Target : Target) (Env : Env) = struct
-  open Target
-
-  module Btx = Btx.Reg(Target.CPU) (Env)
-  module Movx = Movx.Reg(Target.CPU) (Env)
-  type obil = bil Or_error.t
+module Make (CPU : CPU) (B:X86backend.S) = struct
+  module CPU = CPU
 
   let lift mem insn =
-    try
-      match Decode.opcode insn with
-      | Some (#Opcode.btx_reg as op) ->
-        Ok (Btx.lift op (Dis.Insn.ops insn))
-      | Some (#Opcode.movx as op) ->
-        Ok (Movx.lift op (Dis.Insn.ops insn))
-      | Some op ->
-        Dis.Insn.asm insn |>
-        Or_error.errorf "unsupported instruction %s"
-      | None -> lift mem insn
-    with exn -> Format.asprintf "%a: %a"
-                  pp_insn insn
-                  Exn.pp exn |>
-                Or_error.error_string
+    let ops = Dis.Insn.ops insn in
+    match Decode.opcode insn with
+    | Some op -> B.lift op ops
+    | None -> Format.asprintf "unsupported instruction %a"
+                pp_insn insn |>
+              Or_error.error_string
 
-  let lift_insns insns : obil list =
+  let lift_insns insns =
     let rec process acc = function
       | [] -> (List.rev acc)
       | (mem,x) :: xs -> match Decode.prefix x with
@@ -70,9 +53,17 @@ module Lifter (Target : Target) (Env : Env) = struct
     process [] insns
 end
 
-let lifter_of_arch arch =
-  let module Target =
-    (val target_of_arch (arch : Arch.x86 :> arch)) in
-  let module Env = (val env_of_arch arch) in
-  let module Lifter = Lifter(Target)(Env) in
-  Lifter.lift_insns
+module IA32 = Make (X86_cpu.IA32) (X86backend.IA32)
+module AMD64 = Make (X86_cpu.AMD64) (X86backend.AMD64)
+
+let () = Movx.register () |> function
+  | Ok _ -> ()
+  | Error err -> Format.printf "register fail %a" Error.pp err
+         
+
+type lifter =
+  (mem * Disasm_expert.Basic.full_insn) list ->
+  bil Or_error.t list
+
+let ia32 = IA32.lift_insns
+let amd64 = AMD64.lift_insns

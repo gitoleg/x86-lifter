@@ -202,6 +202,9 @@ module AMD64CPU : X86CPU = struct
  include X86_cpu.AMD64
 end
 
+module IA32 = Make(IA32CPU)
+module AMD64 = Make(AMD64CPU)
+
 let env_of_arch = function
-  | `x86 -> (module Make(IA32CPU) : Env)
-  | `x86_64 -> (module Make(AMD64CPU) : Env)
+  | `x86 -> (module IA32 : Env)
+  | `x86_64 -> (module AMD64 : Env)
