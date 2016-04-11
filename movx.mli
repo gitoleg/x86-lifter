@@ -1,6 +1,7 @@
-open Core_kernel.Std
+open X86types
 
 exception Invalid_signature
 exception Invalid_operands
 
-val register : unit -> unit list Or_error.t
+include Registrable
+

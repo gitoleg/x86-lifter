@@ -73,3 +73,6 @@ module type Env = sig
   end
 end
 
+module type Registrable = sig
+  val register: unit -> unit list Core_kernel.Std.Or_error.t
+end

@@ -1,7 +1,7 @@
 open Core_kernel.Std
 open Bap.Std
 open X86types
-open Opcode
+open Movx_opcode
 module Dis = Disasm_expert.Basic
 
 exception Invalid_signature
@@ -12,7 +12,7 @@ module Make (CPU : CPU) (Env : Env)= struct
   module Ext = Extract.Make(Env)
 
   let movx_rr op reg src =
-    match RR.width reg = RR.width src with
+    match Size.(RR.width reg = RR.width src) with
     | true -> RR.get src |> RR.set reg
     | false -> raise Invalid_operands
 
@@ -77,11 +77,11 @@ module Make (CPU : CPU) (Env : Env)= struct
   let register register_all =
     let register_all t = register_all (t :> Opcode.t list) in
     [
-      register_all Opcode.all_of_movx_rr (lift movx_rr Ext.brr);
-      register_all Opcode.all_of_movx_ri (lift movx_ri Ext.bri);
-      register_all Opcode.all_of_movx_rm (lift movx_rm Ext.brm);
-      register_all Opcode.all_of_movx_mr (lift movx_mr Ext.bmr);
-      register_all Opcode.all_of_movx_mi (lift movx_mi Ext.bmi)
+      register_all all_of_movx_rr (lift movx_rr Ext.brr);
+      register_all all_of_movx_ri (lift movx_ri Ext.bri);
+      register_all all_of_movx_rm (lift movx_rm Ext.brm);
+      register_all all_of_movx_mr (lift movx_mr Ext.bmr);
+      register_all all_of_movx_mi (lift movx_mi Ext.bmi)
     ]
 end
 

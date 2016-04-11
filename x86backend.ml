@@ -13,17 +13,11 @@ module type S = sig
   val lift : Opcode.t -> op array -> bil Or_error.t
 end
 
-module Table = Hashtbl.Make(
-  struct
-    type t = Opcode.t [@@deriving sexp, compare]
-    let hash = Hashtbl.hash
-  end)
-
-let create () = Table.create ~size:(List.length Opcode.all) ()
-let register t op lift = Table.add t ~key:op ~data:lift
+let create () = Opcode.Table.create ~size:(List.length Opcode.all) ()
+let register t op lift = Opcode.Table.add t ~key:op ~data:lift
 
 let lift t op ops =
-  match Table.find t op with
+  match Opcode.Table.find t op with
   | Some lift -> Or_error.try_with (fun () -> lift op ops)
   | None ->
     Or_error.error "unsupported operation code" op Opcode.sexp_of_t
@@ -37,7 +31,7 @@ let register_all t op lift =
   Or_error.combine_errors_unit
                    
 module type Data = sig
-  val all : (Opcode.t -> op array -> bil) Table.t
+  val all : (Opcode.t -> op array -> bil) Opcode.Table.t
 end
 
 module Make (D : Data) : S = struct

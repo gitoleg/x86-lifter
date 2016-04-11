@@ -1,6 +1,6 @@
 open Core_kernel.Std
 open Bap.Std
-
+open X86types
 module Dis = Disasm_expert.Basic
 
 let pp_ops fmt =
@@ -56,9 +56,14 @@ end
 module IA32 = Make (X86_cpu.IA32) (X86backend.IA32)
 module AMD64 = Make (X86_cpu.AMD64) (X86backend.AMD64)
 
-let () = Movx.register () |> function
-  | Ok _ -> ()
-  | Error err -> Format.printf "register fail %a" Error.pp err
+
+let () =
+  List.iter ~f:(fun m ->
+      let module M = (val m : Registrable) in
+      match M.register () with
+      | Ok _ -> ()
+      | Error err -> Format.printf "register fail %a" Error.pp err)
+    [ (module Movx : Registrable) ]
          
 
 type lifter =
