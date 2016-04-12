@@ -1,6 +1,5 @@
 open Core_kernel.Std
 open Bap.Std
-open X86types
 module Dis = Disasm_expert.Basic
 
 let pp_ops fmt =
@@ -19,7 +18,7 @@ module Make (CPU : CPU) (B:X86backend.S) = struct
 
   let lift mem insn =
     let ops = Dis.Insn.ops insn in
-    match Decode.opcode insn with
+    match Opcode.decode insn with
     | Some op -> B.lift op ops
     | None -> Format.asprintf "unsupported instruction %a"
                 pp_insn insn |>
@@ -28,7 +27,7 @@ module Make (CPU : CPU) (B:X86backend.S) = struct
   let lift_insns insns =
     let rec process acc = function
       | [] -> (List.rev acc)
-      | (mem,x) :: xs -> match Decode.prefix x with
+      | (mem,x) :: xs -> match Prefix.decode x with
         | None ->
           let bil = match lift mem x with
             | Error _ as err -> err
@@ -36,7 +35,7 @@ module Make (CPU : CPU) (B:X86backend.S) = struct
           process (bil::acc) xs
         | Some pre -> match xs with
           | [] ->
-            let bil = error "trail prefix" pre Opcode.sexp_of_prefix in
+            let bil = error "trail prefix" pre Prefix.sexp_of_t in
             process (bil::acc) []
           | (mem,y) :: xs ->
             let bil = match lift mem y with
@@ -59,11 +58,12 @@ module AMD64 = Make (X86_cpu.AMD64) (X86backend.AMD64)
 
 let () =
   List.iter ~f:(fun m ->
-      let module M = (val m : Registrable) in
+      let module M = (val m : X86backend.R) in
       match M.register () with
       | Ok _ -> ()
       | Error err -> Format.printf "register fail %a" Error.pp err)
-    [ (module Movx : Registrable) ]
+    [ (module Movx : X86backend.R);
+      (module Btx : X86backend.R) ]
          
 
 type lifter =

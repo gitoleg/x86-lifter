@@ -1,3 +1,4 @@
+open Core_kernel.Std
 open Bap.Std
 
 (** 8-bit low byte GPR registers *)
@@ -38,41 +39,26 @@ type r64 = [
   | `R12 | `R13 | `R14 | `R15
 ] [@@deriving sexp]
 
-type x86reg = [
-  | `Nil (* a special case, when no register value specify *)
+type t = [
   | r8
   | r16
   | r32
   | r64
 ] [@@deriving sexp]
 
-module type Env = sig
-  (** Register representation *)
-  module RR : sig
-    val of_reg : reg -> x86reg
-    val var : x86reg -> var
-    val size : [`r32 | `r64] Size.p (* GPR size *)
-    val width : x86reg -> size
-    val bitwidth : x86reg -> int
-    val get : x86reg -> exp
-    val set : x86reg -> exp -> stmt
-  end
+let width = function
+  | #r8 -> `r8
+  | #r16 -> `r16
+  | #r32 -> `r32
+  | #r64 -> `r64
 
-  (** Memory model *)
-  module MM : sig
-    type t
-    val from_addr : seg:reg
-      -> base:reg
-      -> scale:imm
-      -> index:reg
-      -> disp:imm -> t
+let bitwidth r = width r |> Size.in_bits
 
-    val addr : t -> exp
-    val load : t -> size -> exp
-    val store : t -> size -> exp -> stmt
-  end
-end
+type spec = [`Nil | t] [@@deriving sexp]
 
-module type Registrable = sig
-  val register: unit -> unit list Core_kernel.Std.Or_error.t
-end
+let decode reg =
+  match Reg.name reg |> Sexp.of_string |> spec_of_sexp with
+  | `Nil -> None
+  | #t as r -> Some r
+  | exception exn -> Error.failwiths "unknown register"
+                       reg Reg.sexp_of_t

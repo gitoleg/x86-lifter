@@ -3,7 +3,7 @@ open Bap.Std
 
 module type S = sig
   val register : Opcode.t ->
-    (Opcode.t -> op array -> bil) -> [`Ok | `Duplicate ]
+    (op array -> bil) -> unit Or_error.t
 
   val register_all :
     Opcode.t list ->
@@ -13,8 +13,16 @@ module type S = sig
   val lift : Opcode.t -> op array -> bil Or_error.t
 end
 
+module type R = sig
+  val register: unit -> unit Or_error.t
+end
+
 let create () = Opcode.Table.create ~size:(List.length Opcode.all) ()
-let register t op lift = Opcode.Table.add t ~key:op ~data:lift
+let register t op lift =
+  match Opcode.Table.add t ~key:op ~data:lift with
+  | `Ok -> Result.ok_unit
+  | `Duplicate ->
+    Or_error.error "dupplicate opcode" op Opcode.sexp_of_t
 
 let lift t op ops =
   match Opcode.Table.find t op with
@@ -23,11 +31,7 @@ let lift t op ops =
     Or_error.error "unsupported operation code" op Opcode.sexp_of_t
 
 let register_all t op lift =
-  List.map op ~f:(fun op ->
-      match register t op lift with
-      | `Ok -> Result.ok_unit
-      | `Duplicate ->
-        Or_error.error "dupplicate" op Opcode.sexp_of_t) |>
+  List.map op ~f:(fun op -> register t op lift) |>
   Or_error.combine_errors_unit
                    
 module type Data = sig
@@ -35,7 +39,7 @@ module type Data = sig
 end
 
 module Make (D : Data) : S = struct
-  let register = register D.all
+  let register op lift = register D.all op (fun _ -> lift)
   let register_all = register_all D.all
   let lift = lift D.all
 end

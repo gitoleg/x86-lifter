@@ -3,7 +3,7 @@ open Bap.Std
 
 module type S = sig
   val register : Opcode.t ->
-    (Opcode.t -> op array -> bil) -> [`Ok | `Duplicate ]
+    (op array -> bil) -> unit Or_error.t
 
   val register_all :
     Opcode.t list ->
@@ -11,6 +11,10 @@ module type S = sig
     unit Or_error.t
 
   val lift : Opcode.t -> op array -> bil Or_error.t
+end
+
+module type R = sig
+  val register: unit -> unit Or_error.t
 end
 
 module IA32 : S
