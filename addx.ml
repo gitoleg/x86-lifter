@@ -1,6 +1,9 @@
 open Core_kernel.Std
 open Bap.Std
 open Types
+open Addx_opcode
+
+exception Invalid_arg_set of addx
 
 module Reg(Target:Target) = struct
   module CPU = Target.CPU
@@ -8,6 +11,8 @@ module Reg(Target:Target) = struct
   let mem_var = CPU.mem
   let mem = Bil.var mem_var
   let endian = LittleEndian
+
+  let find_reg name = Set.find ~f:(fun v -> Var.name v = name) CPU.gpr
 
   let msb r = Bil.(cast high 1 r)
  
@@ -49,12 +54,11 @@ module Reg(Target:Target) = struct
     let size = Size.of_int_exn width in
     Bil.load ~mem ~addr:(exp_of_reg width reg) endian size 
 
-  let define_width width = function
-    | None -> width
-    | Some w -> w
-
   let prepare_imm ~width ~value_width value =
-    let value_width = define_width width value_width in
+    let value_width = 
+      match value_width with
+      | None -> width
+      | Some w -> w in
     let data = imm_to_exp ~width ~value_width value in
     let v0 = Var.create ~is_virtual:true "v0" (Type.Imm width) in
     Bil.move v0 data, Bil.var v0 
@@ -63,67 +67,141 @@ module Reg(Target:Target) = struct
     let open Bil.Infix in
     let r = e + e' in
     let flags = set_flags width r e e' in
-    flags @ [ dst := r; ]
+    List.rev ((dst := r) :: flags)
 
-  let add_rr width op op' : bil =
+  let add_rr ~width dst op op' : bil =
     add_exp width 
-      (var_of_reg width op)
+      (var_of_reg width dst)
       (exp_of_reg width op)
       (exp_of_reg width op') 
 
-  let add_ri ~width ?value_width dst value : bil =
+  let add_ri ~width ?value_width dst src value : bil =
     let mv, data = prepare_imm ~width ~value_width value in
-    mv :: add_exp width (var_of_reg width dst) (exp_of_reg width dst) data
+    mv :: add_exp width (var_of_reg width dst) (exp_of_reg width src) data
 
   let add_mi ~width ?value_width dst_reg value : bil =
     let mv, data = prepare_imm ~width ~value_width value in
     mv :: add_exp width mem_var (exp_of_reg width dst_reg) data
 
-  let add_mr width dst_reg reg : bil =
-    let data = load_from_reg width dst_reg in
-    add_exp width mem_var (exp_of_reg width dst_reg) data
-                                                                
-  let add_rm width dst_reg mem_reg : bil =
-    let data = load_from_reg width mem_reg in
-    add_exp width mem_var (exp_of_reg width dst_reg) data
+  let add_mr ~width mem_op src : bil =
+    let data = load_from_reg width mem_op in
+    add_exp width mem_var data (exp_of_reg width src)
+
+  let add_rm ~width dst src mem_op : bil =
+    let data = load_from_reg width mem_op in
+    add_exp width (var_of_reg width dst) (exp_of_reg width src) data
+
+  (** TODO: think here. and defenetly fix this  *)
+  let add_rax ~width ?value_width value = 
+    let mv, data = prepare_imm ~width ~value_width value in
+    let ax_reg = match width with 
+      | 8  -> find_reg "AL"
+      | 16 -> find_reg "AX"
+      | 32 -> find_reg "EAX"
+      | 64 -> find_reg "RAX"
+      | _ -> None in
+    match ax_reg with
+    | None -> failwith "Addx.add_rax: unexpected destination width"
+    | Some dst -> 
+      let src = Bil.var dst in
+      mv :: add_exp width dst src data
+
+  (** [find_number_exn ~start str] - returns a number from string [str], 
+      starting at position [start]. Raise [Not_found] if no numbers found *)
+  let find_number_exn ?(start=0) str =
+    let r = Str.regexp "[0-9]+[0-9]*" in
+    let _ = Str.search_forward r str start in
+    int_of_string (Str.matched_string str), Str.match_end ()
+
+  (** [search_number_exn ~index op] - returns a number from [op]
+      name, with [index], e.g. `[search_number_exn ~index `ADD64ri32]`
+      will return 64 with index = 0 and 32 with index = 1. *)
+  let search_width_exn ~index op =   
+    let s = Sexp.to_string (Addx_opcode.sexp_of_addx op) in
+    let rec search cnt start =
+      let n,start' = find_number_exn ~start s in
+      if cnt = index then n
+      else search (cnt + 1) start' in
+    search 0 0
+
+  let dst_width_exn op = 
+    try
+      search_width_exn ~index:0 op
+    with Not_found -> failwith "unknown destination bitwidth"
+
+  let op_width_exn op = 
+    try 
+      search_width_exn ~index:1 op
+    with Not_found -> failwith "unknown operand bitwidth"
+
+  let op_width_opt op = 
+    try 
+      Some (op_width_exn op)
+    with _ -> None
+        
+  let lift_rr op ops = 
+    let open Op in
+    match ops with
+    | [|Reg dst; Reg src; Reg src'|] -> 
+      let width = dst_width_exn op in
+      add_rr ~width dst src src'
+    | _ -> raise (Invalid_arg_set op)
+
+  let lift_ri op ops = 
+    let open Op in
+    match ops with
+    | [|Reg dst; Reg src; Imm v|] -> 
+      let width = dst_width_exn op in
+      let value_width = op_width_opt op in
+      add_ri ~width ?value_width dst src v
+    | _ -> raise (Invalid_arg_set op)
+
+  let lift_rax op ops = 
+    let open Op in 
+    match ops with
+    | [| Imm v |] ->
+      let width = dst_width_exn op in
+      let width' = op_width_exn op in
+      add_rax ~width ~value_width:width' v
+    | _ -> raise (Invalid_arg_set op)
+
+  let lift_rm op ops = 
+    let open Op in 
+    match ops with
+    | [|Reg dst; Reg src; Reg base; Imm scale; Reg index; Imm disp; Reg seg|] ->
+      let width = dst_width_exn op in
+      add_rm ~width dst src base
+    | _ -> raise (Invalid_arg_set op)
+
+  let lift_mi op ops = 
+    let open Op in
+    match ops with 
+    | [|Reg base; Imm scale; Reg index; Imm disp; Reg seg; Imm v |] ->
+      let width = dst_width_exn op in
+      let value_width = op_width_opt op in
+      add_mi ~width ?value_width base v
+    | _ -> raise (Invalid_arg_set op)
+  
+  let lift_mr op ops = 
+    let open Op in
+    match ops with 
+    | [|Reg base; Imm scale; Reg index; Imm disp; Reg seg; Reg src |] ->
+      let width = dst_width_exn op in
+      add_mr ~width base src
+    | _  -> raise (Invalid_arg_set op)
 
   let lift op ops =
-  let open Op in
-    match op,ops with
-    | `ADD64rr, [|Reg dst; Reg dst'; Reg r|] -> add_rr 64 dst r
-    | `ADD32rr, [|Reg dst; Reg dst'; Reg r|] -> add_rr 32 dst r
-    | `ADD16rr, [|Reg dst; Reg dst'; Reg r|] -> add_rr 16 dst r
-    | `ADD8rr,  [|Reg dst; Reg dst'; Reg r|] -> add_rr 8  dst r
-    | `ADD32ri, [|Reg dst; Reg dst'; Imm v|] -> add_ri ~width:32 dst v
-    | `ADD16ri, [|Reg dst; Reg dst'; Imm v|] -> add_ri ~width:16 dst v
-    | `ADD8ri,  [|Reg dst; Reg dst'; Imm v|] -> add_ri ~width:8  dst v
-    | `ADD64ri8, [|Reg dst; Reg dst'; Imm v|] -> 
-      add_ri ~width:64 ~value_width:8 dst v
-    | `ADD32ri8, [|Reg dst; Reg dst'; Imm v|]  -> 
-      add_ri ~width:32 ~value_width:8 dst v
-    | `ADD16ri8, [|Reg dst; Reg dst'; Imm v|] -> 
-      add_ri ~width:16 ~value_width:8 dst v
-    | `ADD64rm, 
-      [|Reg dst; Reg dst'; Reg base; Imm scale; Reg index; Imm disp; Reg seg|] ->
-      add_rm 64 dst base
-    | `ADD32rm, _ -> failwith "unimplemented ADD32rm"
-    | `ADD16rm, _ -> failwith "unimplemented ADD16rm"
-    | `ADD8rm,  _ -> failwith "unimplemented ADD8rm"
-    | `ADD32mi, _ -> failwith "unimplemented ADD32mi"
-    | `ADD16mi, _ -> failwith "unimplemented ADD16mi"
-    | `ADD8mi,  _ -> failwith "unimplemented ADD8mi"
-    | `ADD64mi8, _ -> failwith "unimplemented ADD64mi8"
-    | `ADD32mi8, _ -> failwith "unimplemented ADD32mi8"
-    | `ADD16mi8, _ -> failwith "unimplemented ADD16mi8"
-    | `ADD64mr, _ -> failwith "unimplemented ADD64mr"
-    | `ADD32mr, _ -> failwith "unimplemented ADD32mr"
-    | `ADD16mr, _ -> failwith "unimplemented ADD16mr"
-    | `ADD8mr, _ -> failwith "unimplemented ADD8mr"
-    | `ADD64i32, _ -> failwith "unimplemented ADD64i32"
-    | `ADD32i32, _ -> failwith "unimplemented ADD32i32"
-    | `ADD16i16, _ -> failwith "unimplemented ADD16i16"
-    | `ADD8i8, _ -> failwith "unimplemented ADD8i8"
-    | `ADD64mi32, _ -> failwith "unimplemented ADD64mi32"
-    | `ADD64ri32, _ -> failwith "unimplemented ADD64ri32"
-    | op,ops -> invalid_arg "invalid operation signature"
+    try
+      match op with
+      | (#add_ri | #add_ri8 | `ADD64ri32) as op' -> lift_ri op' ops
+      | (#add_mi | #add_mi8 | `ADD64mi32) as op' -> lift_mi op' ops
+      | #add_rr  as op' -> lift_rr  op' ops
+      | #add_rm  as op' -> lift_rm  op' ops
+      | #add_mr  as op' -> lift_mr  op' ops
+      | #add_rax as op' -> lift_rax op' ops
+    with Invalid_arg_set op ->
+      Sexp.to_string (Addx_opcode.sexp_of_addx op) |>
+      Printf.sprintf "invalid operands set for %s" |>
+      invalid_arg
+
 end
