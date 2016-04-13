@@ -15,20 +15,21 @@ module type S = sig
     val set : t -> exp -> stmt
   end
 
-  (** Memory model *)
-  module MM : sig
-    type t
-    val of_mem : Operand.mem -> t
-    val addr : t -> exp
-    val load : t -> size -> exp
-    val store : t -> size -> exp -> stmt
-  end
-
   (**Imm model*)
   module IM : sig
     type t
     val of_imm : Operand.imm -> t
     val get : width:([`r8 | `r16 | `r32 | `r64] Size.p) -> t -> exp
+  end
+
+  (** Memory model *)
+  module MM : sig
+    type t
+    val of_mem : Operand.mem -> t
+    val of_offset : Operand.imm -> t
+    val addr : t -> exp
+    val load : t -> size -> exp
+    val store : t -> size -> exp -> stmt
   end
 end
 
@@ -112,8 +113,17 @@ module Make(CPU : X86CPU) : S = struct
       Bil.(lhs := rhs)
   end
 
+  module IM = struct
+    type t = Operand.imm
+    let of_imm imm = imm
+    let get ~(width:[`r8 | `r16 | `r32 | `r64] Size.p) t =
+      Imm.to_word t ~width:(Size.in_bits width) |>
+      Option.value_exn |>
+      Bil.int
+  end
+
   module MM = struct
-    type t = {
+    type seg = {
       seg : RR.t option;
       base : RR.t;
       scale : int;
@@ -121,18 +131,27 @@ module Make(CPU : X86CPU) : S = struct
       disp : int;
     } [@@ deriving fields]
 
+    type t =
+      | Segment of seg
+      | Offset of IM.t
+      [@@ deriving variants]
+
+
     let of_mem mem =
-      Fields.create ~seg:(RR.of_reg mem.Operand.seg)
+      Fields_of_seg.create ~seg:(RR.of_reg mem.Operand.seg)
         ~base:(RR.of_reg mem.Operand.base |> Option.value_exn)
         ~scale:(Imm.to_int mem.Operand.scale |> Option.value_exn)
         ~index:(RR.of_reg mem.Operand.index)
-        ~disp:(Imm.to_int mem.Operand.disp |> Option.value_exn)
+        ~disp:(Imm.to_int mem.Operand.disp |> Option.value_exn) |>
+      segment
+
+    let of_offset imm = IM.of_imm imm |> offset
 
     let addr_size = Arch.addr_size (CPU.arch :> arch)
 
     let addr_bitsize = addr_size |> Size.in_bits
 
-    let addr {seg; base; scale; index; disp} =
+    let addr_from_segment {seg; base; scale; index; disp} =
       let regval r =
         let open X86reg in
         match RR.to_x86reg r, CPU.arch with
@@ -174,6 +193,18 @@ module Make(CPU : X86CPU) : S = struct
                     "segment memory model not implemented yet"
                     s RR.sexp_of_t
 
+    let addr_from_offset imm =
+      match CPU.arch with
+      | `x86_64 -> IM.get ~width:`r64 imm
+      | `x86 ->
+        let pc = Bil.var CPU.rip in
+        let off = IM.get ~width:`r32 imm in
+        Bil.(pc + off)
+
+    let addr =
+      Variants.map ~segment:(fun _ -> addr_from_segment)
+        ~offset:(fun _ -> addr_from_offset)
+
     let load t size =
       let addr = addr t in
       let mem = Bil.var CPU.mem in
@@ -185,14 +216,7 @@ module Make(CPU : X86CPU) : S = struct
       Bil.(CPU.mem := store ~mem ~addr data LittleEndian size)
   end
 
-  module IM = struct
-    type t = Operand.imm
-    let of_imm imm = imm
-    let get ~(width:[`r8 | `r16 | `r32 | `r64] Size.p) t =
-      Imm.to_word t ~width:(Size.in_bits width) |>
-      Option.value_exn |>
-      Bil.int
-  end
+
 end
 
 module IA32CPU : X86CPU = struct

@@ -15,20 +15,21 @@ module type S = sig
     val set : t -> exp -> stmt
   end
 
-  (** Memory model *)
-  module MM : sig
-    type t
-    val of_mem : Operand.mem -> t
-    val addr : t -> exp
-    val load : t -> size -> exp
-    val store : t -> size -> exp -> stmt
-  end
-
   (**Imm model*)
   module IM : sig
     type t
     val of_imm : Operand.imm -> t
     val get : width:([`r8 | `r16 | `r32 | `r64]) -> t -> exp
+  end
+
+  (** Memory model *)
+  module MM : sig
+    type t
+    val of_mem : Operand.mem -> t
+    val of_offset : Operand.imm -> t
+    val addr : t -> exp
+    val load : t -> size -> exp
+    val store : t -> size -> exp -> stmt
   end
 end
 
