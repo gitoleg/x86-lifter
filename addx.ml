@@ -12,8 +12,6 @@ module Reg(Target:Target) = struct
   let mem = Bil.var mem_var
   let endian = LittleEndian
 
-  let find_reg name = Set.find ~f:(fun v -> Var.name v = name) CPU.gpr
-
   let msb r = Bil.(cast high 1 r)
  
   let set_cf res op = Bil.(CPU.cf := res < op)
@@ -91,21 +89,25 @@ module Reg(Target:Target) = struct
     let data = load_from_reg width mem_op in
     add_exp width (var_of_reg width dst) (exp_of_reg width src) data
 
-  (** TODO: think here. and defenetly fix this  *)
-  let add_rax ~width ?value_width value = 
-    let mv, data = prepare_imm ~width ~value_width value in
-    let ax_reg = match width with 
-      | 8  -> find_reg "AL"
-      | 16 -> find_reg "AX"
-      | 32 -> find_reg "EAX"
-      | 64 -> find_reg "RAX"
-      | _ -> None in
-    match ax_reg with
-    | None -> failwith "Addx.add_rax: unexpected destination width"
-    | Some dst -> 
-      let src = Bil.var dst in
+  let add_rax ~width ~value_width value =
+    let mv, data = 
+      prepare_imm ~width ~value_width:(Some value_width) value in
+    let dst, src, full_width = match Var.typ CPU.sp with
+      | Type.Imm 32 -> X86env.real32 `EAX, X86env.reg32 `EAX, 32
+      | Type.Imm 64 -> X86env.real64 `RAX, X86env.reg64 `RAX, 64
+      | _ -> failwith "Addx.add_rax: unexpected width" in
+    if full_width = width then
       mv :: add_exp width dst src data
-
+    else
+      let low = Bil.extract (value_width - 1) 0 src in
+      let high = Bil.extract (full_width - 1) value_width src in
+      let v1 = Var.create ~is_virtual:true "v1" (Type.Imm value_width) in
+      let v1' = Bil.var v1 in
+      let s = Bil.move v1 low in
+      let add = s :: mv :: add_exp width v1 v1' data in
+      let res = Bil.move dst (Bil.concat high v1') :: [] in
+      add @ res 
+    
   (** [find_number_exn ~start str] - returns a number from string [str], 
       starting at position [start]. Raise [Not_found] if no numbers found *)
   let find_number_exn ?(start=0) str =
@@ -124,21 +126,15 @@ module Reg(Target:Target) = struct
       else search (cnt + 1) start' in
     search 0 0
 
-  let dst_width_exn op = 
-    try
-      search_width_exn ~index:0 op
-    with Not_found -> failwith "unknown destination bitwidth"
-
-  let op_width_exn op = 
+  let search_width_opt ~index op = 
     try 
-      search_width_exn ~index:1 op
-    with Not_found -> failwith "unknown operand bitwidth"
+      Some (search_width_exn ~index op)
+    with Not_found -> None
 
-  let op_width_opt op = 
-    try 
-      Some (op_width_exn op)
-    with _ -> None
-        
+  let dst_width_exn op = search_width_exn ~index:0 op
+  let src_width_exn op = search_width_exn ~index:1 op
+  let src_width_opt op = search_width_opt ~index:1 op
+         
   let lift_rr op ops = 
     let open Op in
     match ops with
@@ -152,7 +148,7 @@ module Reg(Target:Target) = struct
     match ops with
     | [|Reg dst; Reg src; Imm v|] -> 
       let width = dst_width_exn op in
-      let value_width = op_width_opt op in
+      let value_width = src_width_opt op in
       add_ri ~width ?value_width dst src v
     | _ -> raise (Invalid_arg_set op)
 
@@ -161,7 +157,7 @@ module Reg(Target:Target) = struct
     match ops with
     | [| Imm v |] ->
       let width = dst_width_exn op in
-      let width' = op_width_exn op in
+      let width' = src_width_exn op in
       add_rax ~width ~value_width:width' v
     | _ -> raise (Invalid_arg_set op)
 
@@ -178,7 +174,7 @@ module Reg(Target:Target) = struct
     match ops with 
     | [|Reg base; Imm scale; Reg index; Imm disp; Reg seg; Imm v |] ->
       let width = dst_width_exn op in
-      let value_width = op_width_opt op in
+      let value_width = src_width_opt op in
       add_mi ~width ?value_width base v
     | _ -> raise (Invalid_arg_set op)
   
