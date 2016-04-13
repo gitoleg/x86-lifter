@@ -118,7 +118,7 @@ module Reg(Target:Target) = struct
   (** [search_number_exn ~index op] - returns a number from [op]
       name, with [index], e.g. `[search_number_exn ~index `ADD64ri32]`
       will return 64 with index = 0 and 32 with index = 1. *)
-  let search_width_exn ~index op =   
+  let search_number_exn ~index op =   
     let s = Sexp.to_string (Addx_opcode.sexp_of_addx op) in
     let rec search cnt start =
       let n,start' = find_number_exn ~start s in
@@ -126,14 +126,14 @@ module Reg(Target:Target) = struct
       else search (cnt + 1) start' in
     search 0 0
 
-  let search_width_opt ~index op = 
+  let search_number_opt ~index op = 
     try 
-      Some (search_width_exn ~index op)
+      Some (search_number_exn ~index op)
     with Not_found -> None
 
-  let dst_width_exn op = search_width_exn ~index:0 op
-  let src_width_exn op = search_width_exn ~index:1 op
-  let src_width_opt op = search_width_opt ~index:1 op
+  let dst_width_exn op = search_number_exn ~index:0 op
+  let src_width_exn op = search_number_exn ~index:1 op
+  let src_width_opt op = search_number_opt ~index:1 op
          
   let lift_rr op ops = 
     let open Op in
