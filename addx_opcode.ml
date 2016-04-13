@@ -1,5 +1,4 @@
 
-
 type add_rr = [
   | `ADD64rr
   | `ADD32rr
@@ -14,7 +13,6 @@ type add_rm = [
   | `ADD8rm
 ] [@@deriving sexp]
 
-(** TODO: thus looks like subset of different add*ri where reg = *ax  *)
 type add_rax = [
   | `ADD64i32
   | `ADD32i32
