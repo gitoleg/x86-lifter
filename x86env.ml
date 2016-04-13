@@ -5,6 +5,8 @@ module type S = sig
   (** Register representation *)
   module RR : sig
     type t
+    val of_x86reg : X86reg.t -> t option
+    val of_x86reg_exn : X86reg.t -> t
     val of_reg : Operand.reg -> t option
     val of_reg_exn : Operand.reg -> t
     val to_x86reg : t -> X86reg.t
@@ -44,11 +46,18 @@ module Make(CPU : X86CPU) : S = struct
   module RR = struct
     type t = X86reg.t [@@deriving sexp]
 
-    let of_reg_exn reg =
-      match X86reg.decode reg with
-      | Some r when CPU.avaliable r -> r
-      | Some _ | None ->
-        Error.failwiths "invalid reg" reg sexp_of_reg
+    let of_x86reg = function
+      | r when CPU.avaliable r -> Some r
+      | r -> None
+
+    let of_reg reg =
+      let open Option in
+      X86reg.decode reg >>=
+      of_x86reg
+
+    let of_x86reg_exn reg = of_x86reg reg |> Option.value_exn
+
+    let of_reg_exn reg = of_reg reg |> Option.value_exn
 
     let of_reg reg = Option.try_with (fun () -> of_reg_exn reg)
 

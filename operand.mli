@@ -27,6 +27,10 @@ val r : op array -> reg option
 val i : op array -> imm option
 val m : op array -> mem option
 
+val r_exn : op array -> reg
+val i_exn : op array -> imm
+val m_exn : op array -> mem
+
 val rr : op array -> (reg * reg) option
 val ri : op array ->  (reg * imm) option
 val rm : op array ->  (reg * mem) option

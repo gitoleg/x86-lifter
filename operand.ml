@@ -74,3 +74,8 @@ let r = Decoder.(unary r)
 let i = Decoder.(unary i)
 let m = Decoder.(unary m)
 
+let r_exn ops = r ops |> Option.value_exn
+let i_exn ops = i ops |> Option.value_exn
+let m_exn ops = m ops |> Option.value_exn
+
+

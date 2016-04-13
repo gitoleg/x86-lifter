@@ -5,6 +5,8 @@ module type S = sig
   (** Register representation *)
   module RR : sig
     type t
+    val of_x86reg : X86reg.t -> t option
+    val of_x86reg_exn : X86reg.t -> t
     val of_reg : Operand.reg -> t option
     val of_reg_exn : Operand.reg -> t
     val to_x86reg : t -> X86reg.t
