@@ -58,6 +58,7 @@ struct
                    Tuple.T2.map_snd ~f:MM.of_mem in
     match op, RR.to_x86reg reg with
     | `MOV8rm, #r8
+    | `MOV8rm_NOREX, #r8
     | `MOV16rm, #r16
     | `MOV32rm, #r32
     | `MOV64rm, #r64 ->
@@ -72,6 +73,7 @@ struct
                    Tuple.T2.map_snd ~f:RR.of_reg_exn in
     match op, RR.to_x86reg reg with
     | `MOV8mr, #r8
+    | `MOV8mr_NOREX, #r8
     | `MOV16mr, #r16
     | `MOV32mr, #r32
     | `MOV64mr, #r64 ->

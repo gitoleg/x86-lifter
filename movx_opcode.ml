@@ -2,6 +2,7 @@ open Core_kernel.Std
 
 type movx_rr = [
   | `MOV8rr
+  | `MOV8rr_NOREX
   | `MOV16rr
   | `MOV32rr
   | `MOV64rr
@@ -24,6 +25,7 @@ type movx_mi = [
 
 type movx_rm = [
   | `MOV8rm
+  | `MOV8rm_NOREX
   | `MOV16rm
   | `MOV32rm
   | `MOV64rm
@@ -31,6 +33,7 @@ type movx_rm = [
 
 type movx_mr = [
   | `MOV8mr
+  | `MOV8mr_NOREX
   | `MOV16mr
   | `MOV32mr
   | `MOV64mr
