@@ -1,1 +1,2 @@
 true: package(bap-x86-cpu), package(bap.disasm)
+"asm": include

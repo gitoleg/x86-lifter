@@ -1,6 +1,3 @@
-open Core_kernel.Std
-open Bap.Std
-
 (** 8-bit low byte GPR registers *)
 type r8l = [
   | `AL | `BL | `CL | `DL
@@ -45,20 +42,3 @@ type t = [
   | r32
   | r64
 ] [@@deriving sexp]
-
-let width = function
-  | #r8 -> `r8
-  | #r16 -> `r16
-  | #r32 -> `r32
-  | #r64 -> `r64
-
-let bitwidth r = width r |> Size.in_bits
-
-type spec = [`Nil | t] [@@deriving sexp]
-
-let decode reg =
-  match Reg.name reg |> Sexp.of_string |> spec_of_sexp with
-  | `Nil -> None
-  | #t as r -> Some r
-  | exception exn -> Error.failwiths "unknown register"
-                       reg Reg.sexp_of_t

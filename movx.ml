@@ -1,7 +1,7 @@
 open Core_kernel.Std
 open Bap.Std
 open Movx_opcode
-open X86reg
+open Asm.Reg
 module Dis = Disasm_expert.Basic
 
 exception Invalid_signature

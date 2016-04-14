@@ -3,4 +3,5 @@ PKG bap-x86-cpu
 PKG bap_disasm
 PKG bap_types
 B _build
+B _build/asm
 FLG -short-paths

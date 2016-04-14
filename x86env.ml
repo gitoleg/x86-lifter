@@ -5,11 +5,11 @@ module type S = sig
   (** Register representation *)
   module RR : sig
     type t
-    val of_asm : X86reg.t -> t option
-    val of_asm_exn : X86reg.t -> t
+    val of_asm : Asm.reg -> t option
+    val of_asm_exn : Asm.reg -> t
     val of_mc : Operand.reg -> t option
     val of_mc_exn : Operand.reg -> t
-    val to_asm : t -> X86reg.t
+    val to_asm : t -> Asm.reg
     val width : t -> [`r8 | `r16 | `r32 | `r64] Size.p
     val var : t -> var
     val size : [`r32 | `r64] Size.p (* GPR size *)
@@ -36,15 +36,15 @@ module type S = sig
 end
 
 module type X86CPU = sig
- type regs = private [< X86reg.t]
+ type regs = private [< Asm.reg]
  val arch : Arch.x86
- val avaliable : X86reg.t -> bool
+ val avaliable : Asm.reg -> bool
  include module type of X86_cpu.AMD64
 end
 
 module Make(CPU : X86CPU) : S = struct
   module RR = struct
-    type t = X86reg.t [@@deriving sexp]
+    type t = Asm.reg [@@deriving sexp]
 
     let of_asm = function
       | r when CPU.avaliable r -> Some r
@@ -52,7 +52,7 @@ module Make(CPU : X86CPU) : S = struct
 
     let of_mc reg =
       let open Option in
-      X86reg.decode reg >>=
+      Asm.Reg.decode reg >>=
       of_asm
 
     let of_asm_exn reg = of_asm reg |> Option.value_exn
@@ -63,7 +63,7 @@ module Make(CPU : X86CPU) : S = struct
 
     let to_asm t = t
 
-    let width = X86reg.width
+    let width = Asm.Reg.width
 
     let var_all = function
       | `AL | `AH | `AX | `EAX | `RAX -> CPU.rax
@@ -86,7 +86,7 @@ module Make(CPU : X86CPU) : S = struct
     let var t =
       if CPU.avaliable t then var_all t
       else Error.failwiths "invalid reg variable"
-          t X86reg.sexp_of_t
+          t Asm.Reg.sexp_of_t
 
     let size = match CPU.arch with `x86 -> `r32 | `x86_64 -> `r64
 
@@ -95,30 +95,30 @@ module Make(CPU : X86CPU) : S = struct
     let bvar r = var r |> Bil.var
 
     let get r =
-      let open X86reg in
+      let open Asm in
       let v = bvar r in
       match r, CPU.arch with
-      | #r8h, _ -> Bil.(extract ~hi:8 ~lo:15 v)
-      | #r8l, _ | #r16, _ | #r32, `x86_64 ->
-        Bil.(cast low (bitwidth r) v)
-      | #r32, `x86 | #r64, _ -> v
+      | #Reg.r8h, _ -> Bil.(extract ~hi:8 ~lo:15 v)
+      | #Reg.r8l, _ | #Reg.r16, _ | #Reg.r32, `x86_64 ->
+        Bil.(cast low (Reg.bitwidth r) v)
+      | #Reg.r32, `x86 | #Reg.r64, _ -> v
 
     let set r e =
-      let open X86reg in
+      let open Asm in
       let lhs = var r in
       let rhs =
         let v = bvar r in
         match r, CPU.arch with
-        | #r8h, _ ->
+        | #Reg.r8h, _ ->
           let hp = bitsize - 16 in
           Bil.((cast high hp v) ^ e ^ (cast low 8 v))
-        | #r8l, _ | #r16, _ ->
-          let hp = bitsize - bitwidth r in
+        | #Reg.r8l, _ | #Reg.r16, _ ->
+          let hp = bitsize - Reg.bitwidth r in
           Bil.((cast high hp v) ^ e)
-        | #r32, `x86_64 -> Bil.(cast unsigned bitsize e)
-        | #r32, `x86 | #r64, `x86_64 -> e
-        | #r64, `x86 -> Error.failwiths "invalid reg"
-                          r X86reg.sexp_of_t in
+        | #Reg.r32, `x86_64 -> Bil.(cast unsigned bitsize e)
+        | #Reg.r32, `x86 | #Reg.r64, `x86_64 -> e
+        | #Reg.r64, `x86 -> Error.failwiths "invalid reg"
+                          r Asm.Reg.sexp_of_t in
       Bil.(lhs := rhs)
   end
 
@@ -162,15 +162,15 @@ module Make(CPU : X86CPU) : S = struct
 
     let addr_from_segment {seg; base; scale; index; disp} =
       let regval r =
-        let open X86reg in
+        let open Asm in
         match RR.to_asm r, CPU.arch with
-        | #r8, _
-        | #r16, _
-        | #r32, `x86_64 ->
+        | #Reg.r8, _
+        | #Reg.r16, _
+        | #Reg.r32, `x86_64 ->
           let v = RR.get r in
           Bil.(cast unsigned addr_bitsize v)
-        | #r32, `x86
-        | #r64, _ -> RR.get r in
+        | #Reg.r32, `x86
+        | #Reg.r64, _ -> RR.get r in
       let base = regval base in
       let scale =
         let make_scale value =
@@ -246,7 +246,7 @@ module IA32CPU : X86CPU = struct
 end
 
 module AMD64CPU : X86CPU = struct
- type regs = X86reg.t
+ type regs = Asm.reg
 
  let arch = `x86_64
  let avaliable = function
