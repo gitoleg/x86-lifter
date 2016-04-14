@@ -7,8 +7,8 @@ module type S = sig
     type t
     val of_asm : X86reg.t -> t option
     val of_asm_exn : X86reg.t -> t
-    val of_reg : Operand.reg -> t option
-    val of_reg_exn : Operand.reg -> t
+    val of_mc : Operand.reg -> t option
+    val of_mc_exn : Operand.reg -> t
     val to_asm : t -> X86reg.t
     val width : t -> [`r8 | `r16 | `r32 | `r64]
     val var : t -> var

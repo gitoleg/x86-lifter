@@ -7,8 +7,8 @@ module type S = sig
     type t
     val of_asm : X86reg.t -> t option
     val of_asm_exn : X86reg.t -> t
-    val of_reg : Operand.reg -> t option
-    val of_reg_exn : Operand.reg -> t
+    val of_mc : Operand.reg -> t option
+    val of_mc_exn : Operand.reg -> t
     val to_asm : t -> X86reg.t
     val width : t -> [`r8 | `r16 | `r32 | `r64] Size.p
     val var : t -> var
@@ -50,16 +50,16 @@ module Make(CPU : X86CPU) : S = struct
       | r when CPU.avaliable r -> Some r
       | r -> None
 
-    let of_reg reg =
+    let of_mc reg =
       let open Option in
       X86reg.decode reg >>=
       of_asm
 
     let of_asm_exn reg = of_asm reg |> Option.value_exn
 
-    let of_reg_exn reg = of_reg reg |> Option.value_exn
+    let of_mc_exn reg = of_mc reg |> Option.value_exn
 
-    let of_reg reg = Option.try_with (fun () -> of_reg_exn reg)
+    let of_mc reg = Option.try_with (fun () -> of_mc_exn reg)
 
     let to_asm t = t
 
@@ -147,10 +147,10 @@ module Make(CPU : X86CPU) : S = struct
 
 
     let of_mem mem =
-      Fields_of_seg.create ~seg:(RR.of_reg mem.Operand.seg)
-        ~base:(RR.of_reg mem.Operand.base |> Option.value_exn)
+      Fields_of_seg.create ~seg:(RR.of_mc mem.Operand.seg)
+        ~base:(RR.of_mc mem.Operand.base |> Option.value_exn)
         ~scale:(Imm.to_int mem.Operand.scale |> Option.value_exn)
-        ~index:(RR.of_reg mem.Operand.index)
+        ~index:(RR.of_mc mem.Operand.index)
         ~disp:(Imm.to_int mem.Operand.disp |> Option.value_exn) |>
       segment
 

@@ -14,15 +14,15 @@ struct
 
   let movx_rr (op:movx_rr) ops =
     let dst, src =  Operand.rr_exn ops |>
-                    Tuple.T2.map_fst ~f:RR.of_reg_exn |>
-                    Tuple.T2.map_snd ~f:RR.of_reg_exn in
+                    Tuple.T2.map_fst ~f:RR.of_mc_exn |>
+                    Tuple.T2.map_snd ~f:RR.of_mc_exn in
     match RR.width dst = RR.width src with
     | true -> [RR.get src |> RR.set dst]
     | false -> raise Invalid_operands
 
   let movx_ri (op:movx_ri) ops =
     let reg, imm = Operand.ri_exn ops |>
-                   Tuple.T2.map_fst ~f:RR.of_reg_exn |>
+                   Tuple.T2.map_fst ~f:RR.of_mc_exn |>
                    Tuple.T2.map_snd ~f:IM.of_imm in
     let value =
       match op, RR.to_asm reg with
@@ -53,7 +53,7 @@ struct
 
   let movx_rm (op:movx_rm) ops =
     let reg, mem = Operand.rm_exn ops |>
-                   Tuple.T2.map_fst ~f:RR.of_reg_exn |>
+                   Tuple.T2.map_fst ~f:RR.of_mc_exn |>
                    Tuple.T2.map_snd ~f:MM.of_mem in
     match op, RR.to_asm reg with
     | `MOV8rm, #r8
@@ -69,7 +69,7 @@ struct
   let movx_mr (op:movx_mr) ops =
     let mem, reg = Operand.mr_exn ops |>
                    Tuple.T2.map_fst ~f:MM.of_mem |>
-                   Tuple.T2.map_snd ~f:RR.of_reg_exn in
+                   Tuple.T2.map_snd ~f:RR.of_mc_exn in
     match op, RR.to_asm reg with
     | `MOV8mr, #r8
     | `MOV8mr_NOREX, #r8

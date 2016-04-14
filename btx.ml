@@ -22,7 +22,7 @@ struct
 
   let reg width x =
     let x = match width with
-      | 32 | 64 -> RR.of_reg x |> Option.value_exn |> RR.get
+      | 32 | 64 -> RR.of_mc x |> Option.value_exn |> RR.get
       | _ -> invalid_arg "Btx.reg : expect (32 | 64)" in
     Bil.(x mod (width %: width))
 
@@ -38,7 +38,7 @@ struct
   let set how width reg typ x =
     let exp, set =
       let lhs,rhs = match width with
-        | 32 | 64 -> let r = RR.of_reg reg |> Option.value_exn in
+        | 32 | 64 -> let r = RR.of_mc reg |> Option.value_exn in
           RR.(var r, get r)
         | _ -> invalid_arg "Btx.set: expect (32 | 64)" in
       match how with
