@@ -5,11 +5,11 @@ module type S = sig
   (** Register representation *)
   module RR : sig
     type t
-    val of_x86reg : X86reg.t -> t option
-    val of_x86reg_exn : X86reg.t -> t
+    val of_asm : X86reg.t -> t option
+    val of_asm_exn : X86reg.t -> t
     val of_reg : Operand.reg -> t option
     val of_reg_exn : Operand.reg -> t
-    val to_x86reg : t -> X86reg.t
+    val to_asm : t -> X86reg.t
     val width : t -> [`r8 | `r16 | `r32 | `r64] Size.p
     val var : t -> var
     val size : [`r32 | `r64] Size.p (* GPR size *)
@@ -46,22 +46,22 @@ module Make(CPU : X86CPU) : S = struct
   module RR = struct
     type t = X86reg.t [@@deriving sexp]
 
-    let of_x86reg = function
+    let of_asm = function
       | r when CPU.avaliable r -> Some r
       | r -> None
 
     let of_reg reg =
       let open Option in
       X86reg.decode reg >>=
-      of_x86reg
+      of_asm
 
-    let of_x86reg_exn reg = of_x86reg reg |> Option.value_exn
+    let of_asm_exn reg = of_asm reg |> Option.value_exn
 
     let of_reg_exn reg = of_reg reg |> Option.value_exn
 
     let of_reg reg = Option.try_with (fun () -> of_reg_exn reg)
 
-    let to_x86reg t = t
+    let to_asm t = t
 
     let width = X86reg.width
 
@@ -163,7 +163,7 @@ module Make(CPU : X86CPU) : S = struct
     let addr_from_segment {seg; base; scale; index; disp} =
       let regval r =
         let open X86reg in
-        match RR.to_x86reg r, CPU.arch with
+        match RR.to_asm r, CPU.arch with
         | #r8, _
         | #r16, _
         | #r32, `x86_64 ->

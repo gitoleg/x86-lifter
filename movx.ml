@@ -25,7 +25,7 @@ struct
                    Tuple.T2.map_fst ~f:RR.of_reg_exn |>
                    Tuple.T2.map_snd ~f:IM.of_imm in
     let value =
-      match op, RR.to_x86reg reg with
+      match op, RR.to_asm reg with
       | `MOV64ri32, #r64 ->  IM.get ~width:`r32 imm |>
                              Bil.(cast signed 64)
       | `MOV8ri, #r8
@@ -55,7 +55,7 @@ struct
     let reg, mem = Operand.rm_exn ops |>
                    Tuple.T2.map_fst ~f:RR.of_reg_exn |>
                    Tuple.T2.map_snd ~f:MM.of_mem in
-    match op, RR.to_x86reg reg with
+    match op, RR.to_asm reg with
     | `MOV8rm, #r8
     | `MOV8rm_NOREX, #r8
     | `MOV16rm, #r16
@@ -70,7 +70,7 @@ struct
     let mem, reg = Operand.mr_exn ops |>
                    Tuple.T2.map_fst ~f:MM.of_mem |>
                    Tuple.T2.map_snd ~f:RR.of_reg_exn in
-    match op, RR.to_x86reg reg with
+    match op, RR.to_asm reg with
     | `MOV8mr, #r8
     | `MOV8mr_NOREX, #r8
     | `MOV16mr, #r16
@@ -91,7 +91,7 @@ struct
       | `MOV32o32a
       | `MOV64o32a -> `EAX
       | `MOV64o64a -> `RAX in
-    let reg = RR.of_x86reg_exn reg in
+    let reg = RR.of_asm_exn reg in
     [MM.load mem (RR.width reg :> size) |>
      RR.set reg]
 
@@ -106,7 +106,7 @@ struct
       | `MOV32ao32
       | `MOV64ao32 -> `EAX
       | `MOV64ao64 -> `RAX in
-    let reg = RR.of_x86reg_exn reg in
+    let reg = RR.of_asm_exn reg in
     [RR.get reg |>
      MM.store mem (RR.width reg :> size)]
 

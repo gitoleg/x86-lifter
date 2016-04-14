@@ -5,11 +5,11 @@ module type S = sig
   (** Register representation *)
   module RR : sig
     type t
-    val of_x86reg : X86reg.t -> t option
-    val of_x86reg_exn : X86reg.t -> t
+    val of_asm : X86reg.t -> t option
+    val of_asm_exn : X86reg.t -> t
     val of_reg : Operand.reg -> t option
     val of_reg_exn : Operand.reg -> t
-    val to_x86reg : t -> X86reg.t
+    val to_asm : t -> X86reg.t
     val width : t -> [`r8 | `r16 | `r32 | `r64]
     val var : t -> var
     val size : [`r32 | `r64]
