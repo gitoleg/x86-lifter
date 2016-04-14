@@ -4,6 +4,7 @@ open Types
 open Addx_opcode
 open Adcx_opcode
 open Subx_opcode
+open Sbbx_opcode
 
 let exp_of_reg width reg = match width with
   | 64 -> X86env.reg_from_dis64 reg |> X86env.reg64
@@ -50,7 +51,7 @@ module type Arithmetic = sig
   val process: int -> var -> exp -> exp -> bil
 end
 
-module AddPlain(Target:Target) = struct
+module Add(Target:Target) = struct
 
   type opcode = addx
 
@@ -83,7 +84,7 @@ module AddPlain(Target:Target) = struct
 end
 
 module AddCarry(Target:Target) = struct
-  module Plain = AddPlain(Target)
+  module Add = Add(Target)
 
   type opcode = adcx
     
@@ -92,19 +93,33 @@ module AddCarry(Target:Target) = struct
 
   let process width dst e e' = 
     let ec = Bil.(e' + Bil.var Target.CPU.cf) in
-    Plain.process width dst e ec
+    Add.process width dst e ec
 end
 
+(** TODO: add flags here  *)
 module Sub(Target : Target) = struct
   type opcode = subx
     
   let string_of_opcode t = 
     Sexp.to_string (Subx_opcode.sexp_of_subx t)
 
-  let add width dst e e' = 
+  let process width dst e e' = 
     let open Bil in
     let r = e - e' in
     (dst := r) :: []
+end
+
+module SubBorrow(Target : Target) = struct
+  module Sub = Sub(Target)
+  type opcode = sbbx
+    
+  let string_of_opcode t = 
+    Sexp.to_string (Sbbx_opcode.sexp_of_sbbx t)
+
+  let process width dst e e' = 
+    let eb = Bil.(e' - Bil.var Target.CPU.cf) in
+    Sub.process width dst e eb
+
 end
 
 module Make(Target : Target) (Arith : Arithmetic) = struct
@@ -161,6 +176,7 @@ module Make(Target : Target) (Arith : Arithmetic) = struct
     let data = load_from_reg width mem_op in
     process width (var_of_reg width dst) (exp_of_reg width src) data
 
+  (** TODO: it's only stub. refine it  *)
   let process_rax ~width ~value_width value =
     let mv, data = 
       prepare_imm ~width ~value_width:(Some value_width) value in
@@ -194,7 +210,8 @@ module Make(Target : Target) (Arith : Arithmetic) = struct
     | [|Reg dst; Reg src; Imm v|] -> 
       let width = dst_width_exn op in
       let value_width = src_width_opt op in
-      process_ri ~width ?value_width dst src v
+      let mv, data = prepare_imm ~width ~value_width v in
+      mv :: process width (var_of_reg width dst) (exp_of_reg width src) data
     | _ -> raise Invalid_arg_set
 
   let lift_rax op ops = 
@@ -233,72 +250,49 @@ module Make(Target : Target) (Arith : Arithmetic) = struct
 
 end
 
+(** TODO: it's a kind of trash .. refine it  *)
 module Reg(Target:Target) = struct
-  module Plain = AddPlain(Target)
-  module Add = Make(Target)(Plain)
-  include Add
-
-  let lift op ops =
-    try
-      match op with
-      | (#add_ri | #add_ri8 | `ADD64ri32) as op' -> lift_ri op' ops
-      | (#add_mi | #add_mi8 | `ADD64mi32) as op' -> lift_mi op' ops
-      | #add_rr  as op' -> lift_rr  op' ops
-      | #add_rm  as op' -> lift_rm  op' ops
-      | #add_mr  as op' -> lift_mr  op' ops
-      | #add_rax as op' -> lift_rax op' ops
-    with Invalid_arg_set ->
-      string_of_opcode op |>
-      Printf.sprintf "invalid operands set for %s" |>
-      invalid_arg
-
-end
-
-module RegCarry(Target:Target) = struct
+  module AddPlain = Add(Target)
   module AddCarry = AddCarry(Target)
-  module Add = Make(Target)(AddCarry)
-  include Add
+  module SubPlain = Sub(Target)
+  module SubB = SubBorrow(Target)
+  module Add = Make(Target)(AddPlain)
+  module Adc = Make(Target)(AddCarry)
+  module Sub = Make(Target)(SubPlain)
+  module Sbb = Make(Target)(SubB)
 
   let lift op ops =
     try
       match op with
-      | (#adc_ri | #adc_ri8 | `ADC64ri32) as op' -> lift_ri op' ops
-      | (#adc_mi | #adc_mi8 | `ADC64mi32) as op' -> lift_mi op' ops
-      | #adc_rr  as op' -> lift_rr  op' ops
-      | #adc_rm  as op' -> lift_rm  op' ops
-      | #adc_mr  as op' -> lift_mr  op' ops
-      | #adc_rax as op' -> lift_rax op' ops
-    with Invalid_arg_set ->
-      string_of_opcode op |>
-      Printf.sprintf "invalid operands set for %s" |>
-      invalid_arg
-end
-
-module Test(Target:Target) = struct
-  module Plain = AddPlain(Target)
-  module AddCarry = AddCarry(Target)
-  module AddP = Make(Target)(Plain)
-  module AddC = Make(Target)(AddCarry)
-
-  let lift op ops =
-    try
-      match op with
-      | (#adc_ri | #adc_ri8 | `ADC64ri32) as op' -> AddC.lift_ri op' ops
-      | (#add_ri | #add_ri8 | `ADD64ri32) as op' -> AddP.lift_ri op' ops
-      | (#adc_mi | #adc_mi8 | `ADC64mi32) as op' -> AddC.lift_mi op' ops
-      | (#add_mi | #add_mi8 | `ADD64mi32) as op' -> AddP.lift_mi op' ops
-      | #adc_rr  as op' -> AddC.lift_rr  op' ops
-      | #add_rr  as op' -> AddP.lift_rr  op' ops
-      | #adc_rm  as op' -> AddC.lift_rm  op' ops
-      | #add_rm  as op' -> AddP.lift_rm  op' ops
-      | #adc_mr  as op' -> AddC.lift_mr  op' ops
-      | #add_mr  as op' -> AddP.lift_mr  op' ops
-      | #adc_rax as op' -> AddC.lift_rax op' ops
-      | #add_rax as op' -> AddP.lift_rax op' ops
+      | (#adc_ri | #adc_ri8 | `ADC64ri32) as op' -> Adc.lift_ri op' ops
+      | (#add_ri | #add_ri8 | `ADD64ri32) as op' -> Add.lift_ri op' ops
+      | (#sub_ri | #sub_ri8 | `SUB64ri32) as op' -> Sub.lift_ri op' ops
+      | (#sbb_ri | #sbb_ri8 | `SBB64ri32) as op' -> Sbb.lift_ri op' ops
+      | (#adc_mi | #adc_mi8 | `ADC64mi32) as op' -> Adc.lift_mi op' ops
+      | (#add_mi | #add_mi8 | `ADD64mi32) as op' -> Add.lift_mi op' ops
+      | (#sub_mi | #sub_mi8 | `SUB64mi32) as op' -> Sub.lift_mi op' ops
+      | (#sbb_mi | #sbb_mi8 | `SBB64mi32) as op' -> Sbb.lift_mi op' ops
+      | #adc_rr  as op' -> Adc.lift_rr  op' ops
+      | #add_rr  as op' -> Add.lift_rr  op' ops
+      | #sub_rr  as op' -> Sub.lift_rr  op' ops
+      | #sbb_rr  as op' -> Sbb.lift_rr  op' ops
+      | #adc_rm  as op' -> Adc.lift_rm  op' ops
+      | #add_rm  as op' -> Add.lift_rm  op' ops
+      | #sub_rm  as op' -> Sub.lift_rm  op' ops
+      | #sbb_rm  as op' -> Sbb.lift_rm  op' ops
+      | #adc_mr  as op' -> Adc.lift_mr  op' ops
+      | #add_mr  as op' -> Add.lift_mr  op' ops
+      | #sub_mr  as op' -> Sub.lift_mr  op' ops
+      | #sbb_mr  as op' -> Sbb.lift_mr  op' ops
+      | #adc_rax as op' -> Adc.lift_rax op' ops
+      | #add_rax as op' -> Add.lift_rax op' ops
+      | #sub_rax as op' -> Sub.lift_rax op' ops
+      | #sbb_rax as op' -> Sbb.lift_rax op' ops
     with _ -> 
       let s = match op with
-        | #adcx as op' -> AddC.string_of_opcode op' 
-        | #addx as op'-> AddP.string_of_opcode op' in
-      invalid_arg
-        (Printf.sprintf "invalid operands set for %s" s)
+        | #adcx as op' -> Adc.string_of_opcode op' 
+        | #addx as op' -> Add.string_of_opcode op' 
+        | #subx as op' -> Sub.string_of_opcode op' 
+        | #sbbx as op' -> Sbb.string_of_opcode op' in
+      invalid_arg (Printf.sprintf "invalid operands set for %s" s)
 end
