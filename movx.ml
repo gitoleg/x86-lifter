@@ -55,9 +55,9 @@ struct
             MM.store mem ~size:(RR.width reg)])
       ~on_error:(Or_error.error_string "invalid operands")
 
-  let movx_oa (op:movx_oa) ops =
+  let movx_oa (op:movx_oa) mem ops =
     Operand.i ops ~f:(fun off ->
-        let mem = MM.of_offset off in
+        let mem = MM.of_offset mem off in
         let reg =
           let asm = match op with
             | `MOV8o8a
@@ -72,9 +72,9 @@ struct
             RR.set reg])
       ~on_error:(Or_error.error_string "invalid operands")
 
-  let movx_ao (op:movx_ao) ops =
+  let movx_ao (op:movx_ao) mem ops =
     Operand.i ops ~f:(fun off ->
-        let mem = MM.of_offset off in
+        let mem = MM.of_offset mem off in
         let reg =
           let asm = match op with
             | `MOV8ao8
@@ -89,7 +89,7 @@ struct
             MM.store mem ~size:(RR.width reg)])
       ~on_error:(Or_error.error_string "invalid operands")
 
-  let movx (op:Movx_opcode.t) ops =
+  let movx (op:Movx_opcode.t) mem ops =
     Or_error.try_with_join (fun () ->
         match op with
         | #movx_rr as op -> movx_rr op ops
@@ -97,8 +97,8 @@ struct
         | #movx_rm as op -> movx_rm op ops
         | #movx_mr as op -> movx_mr op ops
         | #movx_mi as op -> movx_mi op ops
-        | #movx_oa as op -> movx_oa op ops
-        | #movx_ao as op -> movx_ao op ops)
+        | #movx_oa as op -> movx_oa op mem ops
+        | #movx_ao as op -> movx_ao op mem ops)
 
   let register () =
     List.iter ~f:(fun op -> Lifters.register (op :> Opcode.t) (movx op))

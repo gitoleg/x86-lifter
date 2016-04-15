@@ -4,7 +4,7 @@ open Bap.Std
 include X86backend_types
 
 module type Data = sig
-  val data : (op array -> bil Or_error.t) Opcode.Table.t
+  val data : (mem -> op array -> bil Or_error.t) Opcode.Table.t
 end
 
 module Make (D : Data) : X86backend_types.S = struct
@@ -13,7 +13,7 @@ module Make (D : Data) : X86backend_types.S = struct
     Opcode.Table.set data ~key:op ~data:lift
   let lift op =
     Opcode.Table.find data op |>
-    Option.value ~default:(fun (_:op array) ->
+    Option.value ~default:(fun (_:mem) (_:op array) ->
         Or_error.error "unsupperted operation code"
           op Opcode.sexp_of_t)
 end

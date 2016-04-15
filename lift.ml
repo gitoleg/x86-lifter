@@ -19,7 +19,7 @@ module Make (CPU : CPU) (B:X86backend.S) = struct
   let lift mem insn =
     let ops = Dis.Insn.ops insn in
     match Opcode.decode insn with
-    | Some op -> B.lift op ops
+    | Some op -> B.lift op mem ops
     | None -> Format.asprintf "unsupported instruction %a"
                 pp_insn insn |>
               Or_error.error_string
