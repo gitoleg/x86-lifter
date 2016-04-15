@@ -13,95 +13,80 @@ type mem = {
   disp : imm
 }
 
-module Decoder = struct
-  type 'a t = (op list -> ('a * op list) option)
 
+module Unary = struct
+  type ('a, 'b) action = ('a -> 'b Or_error.t) -> 'b Or_error.t
+  type 'a arg = op array -> 'a option
+  type ('a, 'b) parser = 'a arg -> op array -> ('a, 'b) action
 
-  let r = function
-    | (Op.Reg reg)::other -> Some (reg, other)
-    | _ -> None
+  module Arg = struct
+    type 'a t = 'a arg
+    let reg = function
+      | [| Op.Reg reg |] -> Some reg
+      | _ -> None
 
-  let i = function
-    | (Op.Imm imm)::other -> Some (imm, other)
-    | _ -> None
+    let imm = function
+      | [| Op.Imm imm |] -> Some imm
+      | _ -> None
 
-  let m = function
-    | (Op.Reg base)::(Op.Imm scale)::(Op.Reg index)::
-      (Op.Imm disp)::(Op.Reg seg)::other ->
-      Some ({seg; base; scale; index; disp}, other)
-    | _ -> None
+    let mem = function
+      | [| Op.Reg base; Op.Imm scale; Op.Reg index;
+           Op.Imm disp; Op.Reg seg|] ->
+        Some ({seg; base; scale; index; disp})
+      | _ -> None
+  end
 
-  let finish ops result =
-    match ops with
-    | [] -> Some result
-    | _ -> None
-
-  let unary t ops =
-    let open Option in
-    Array.to_list ops |>
-    t >>= fun (op, ops) -> finish ops op
-
-  let binary t1 t2 ops =
-    let open Option in
-    Array.to_list ops |>
-    t1 >>= fun (op1, ops) ->
-    t2 ops >>= fun (op2, ops) ->
-    finish ops (op1, op2)
-
-  let ternary t1 t2 t3 ops =
-    let open Option in
-    Array.to_list ops |>
-    t1 >>= fun (op1, ops) ->
-    t2 ops >>= fun (op2, ops) ->
-    t3 ops >>= fun (op3, ops) ->
-    finish ops (op1, op2, op3)
+  let run : ('a, 'b) parser = fun arg ops f -> match arg ops with
+    | Some op -> f op
+    | None -> Or_error.error_string "invalid operands"
 end
 
-let r ops ~on_error ~f =
-  let open Option in
-  Decoder.(unary r) ops >>| f |>value ~default:on_error
+module Binary = struct
+  type ('a, 'b, 'c) action = ('a -> 'b -> 'c Or_error.t) -> 'c Or_error.t
+  type ('a, 'b) arg = op array -> ('a * 'b) option
+  type ('a, 'b, 'c) parser = ('a, 'b) arg -> op array -> ('a, 'b, 'c) action
 
-let i ops ~on_error ~f =
-  let open Option in
-  Decoder.(unary i) ops >>| f |>value ~default:on_error
+  module Arg = struct
+    type ('a, 'b) t = ('a, 'b) arg
+    let reg_reg = function
+      | [| Op.Reg reg1; Op.Reg reg2 |] -> Some (reg1, reg2)
+      | _ -> None
 
-let m ops ~on_error ~f =
-  let open Option in
-  Decoder.(unary m) ops >>| f |>value ~default:on_error
+    let reg_imm = function
+      | [| Op.Reg reg; Op.Imm imm |] -> Some (reg, imm)
+      | _ -> None
 
-let b parse ops ~on_error ~f =
-  let open Option in
-  parse ops >>= (fun (op1, op2) -> f op1 op2) |> value
+    let reg_mem = function
+      | [| Op.Reg reg; Op.Reg base; Op.Imm scale; Op.Reg index;
+           Op.Imm disp; Op.Reg seg|] ->
+        Some (reg, {seg; base; scale; index; disp})
+      | _ -> None
 
-let rr ops ~on_error ~f = 
-  let open Option in
-  Decoder.(binary r r) ops >>|
-  (fun (op1, op2) -> f op1 op2) |>
-  value ~default:on_error
+    let mem_reg = function
+      | [| Op.Reg base; Op.Imm scale; Op.Reg index;
+           Op.Imm disp; Op.Reg seg; Op.Reg reg |] ->
+        Some ({seg; base; scale; index; disp}, reg)
+      | _ -> None
 
-let ri ops ~on_error ~f = 
-  let open Option in
-  Decoder.(binary r i) ops >>|
-  (fun (op1, op2) -> f op1 op2) |>
-  value ~default:on_error
+    let mem_imm = function
+      | [| Op.Reg base; Op.Imm scale; Op.Reg index;
+           Op.Imm disp; Op.Reg seg; Op.Imm imm |] ->
+        Some ({seg; base; scale; index; disp}, imm)
+      | _ -> None
 
-let rm ops ~on_error ~f = 
-  let open Option in
-  Decoder.(binary r m) ops >>|
-  (fun (op1, op2) -> f op1 op2) |>
-  value ~default:on_error
+  end
 
-let mr ops ~on_error ~f = 
-  let open Option in
-  Decoder.(binary m r) ops >>|
-  (fun (op1, op2) -> f op1 op2) |>
-  value ~default:on_error
+  let run : ('a, 'b, 'c) parser = fun arg ops f -> match arg ops with
+    | Some (op1, op2) -> f op1 op2
+    | None -> Or_error.error_string "invalid operands"
+end
 
-let mi ops ~on_error ~f = 
-  let open Option in
-  Decoder.(binary m i) ops >>|
-  (fun (op1, op2) -> f op1 op2) |>
-  value ~default:on_error
+let r ops ~f = Unary.(run Arg.reg ops f)
+let i ops ~f = Unary.(run Arg.imm ops f)
+let m ops ~f = Unary.(run Arg.mem ops f)
 
-
-
+let rr ops ~f = Binary.(run Arg.reg_reg ops f)
+let ri ops ~f = Binary.(run Arg.reg_imm ops f)
+let rm ops ~f = Binary.(run Arg.reg_mem ops f)
+let mr ops ~f = Binary.(run Arg.mem_reg ops f)
+let mi ops ~f = Binary.(run Arg.mem_imm ops f)

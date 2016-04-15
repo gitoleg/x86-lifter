@@ -49,8 +49,7 @@ struct
 
   let register () =
     let set how width typ xx ops =
-      xx ops ~on_error:(Or_error.error_string "unknown operands")
-        ~f:(fun b off -> Ok (set how width b typ off)) in
+      xx ops ~f:(fun b off -> Ok (set how width b typ off)) in
     List.iter ~f:(fun (op, lift) ->
         Backend.register op (fun (_:mem) -> lift)) [
       `BT64rr, set nothing 64 reg Operand.rr;

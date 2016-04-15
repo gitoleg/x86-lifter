@@ -13,22 +13,12 @@ type mem = {
   disp : imm
 }
 
-module Decoder : sig
-  type 'a t
-  val r : reg t
-  val i : imm t
-  val m : mem t
-  val unary : 'a t -> op array -> 'a option
-  val binary : 'a t -> 'b t -> op array -> ('a * 'b) option
-  val ternary : 'a t -> 'b t -> 'c t -> op array -> ('a * 'b * 'c) option
-end
+val r : op array -> f:(reg -> 'a Or_error.t) -> 'a Or_error.t
+val i : op array -> f:(imm -> 'a Or_error.t) -> 'a Or_error.t
+val m : op array -> f:(mem -> 'a Or_error.t) -> 'a Or_error.t
 
-val r : op array -> on_error:'a -> f:(reg -> 'a) -> 'a
-val i : op array -> on_error:'a -> f:(imm -> 'a) -> 'a
-val m : op array -> on_error:'a -> f:(mem -> 'a) -> 'a
-
-val rr : op array -> on_error:'a -> f:(reg -> reg -> 'a) -> 'a
-val ri : op array -> on_error:'a -> f:(reg -> imm -> 'a ) -> 'a
-val rm : op array -> on_error:'a -> f:(reg -> mem -> 'a) -> 'a
-val mr : op array -> on_error:'a -> f:(mem -> reg -> 'a) -> 'a
-val mi : op array -> on_error:'a -> f:(mem -> imm -> 'a) -> 'a
+val rr : op array -> f:(reg -> reg -> 'a Or_error.t) -> 'a Or_error.t
+val ri : op array -> f:(reg -> imm -> 'a Or_error.t ) -> 'a Or_error.t
+val rm : op array -> f:(reg -> mem -> 'a Or_error.t) -> 'a Or_error.t
+val mr : op array -> f:(mem -> reg -> 'a Or_error.t) -> 'a Or_error.t
+val mi : op array -> f:(mem -> imm -> 'a Or_error.t) -> 'a Or_error.t

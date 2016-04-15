@@ -17,14 +17,12 @@ struct
         let dst = RR.of_mc_exn src in
         let src = RR.of_mc_exn src in
         Ok [RR.get src |> RR.set dst])
-      ~on_error:(Or_error.error_string "invalid operands")
 
   let movx_ri (op:movx_ri) ops =
     Operand.ri ops ~f:(fun reg imm ->
         RR.of_mc_exn reg |> fun reg ->
         IM.of_imm imm |> fun imm ->
         Ok [IM.get ~width:(RR.width reg) imm |> RR.set reg])
-      ~on_error:(Or_error.error_string "invalid operands")
 
   let movx_mi (op:movx_mi) ops =
     Operand.mi ops ~f:(fun mem imm ->
@@ -37,7 +35,6 @@ struct
           | `MOV64mi32 -> `r64 in
         Ok [IM.get ~width:size imm |>
             MM.store mem ~size])
-      ~on_error:(Or_error.error_string "invalid operands")
 
   let movx_rm (op:movx_rm) ops =
     Operand.rm ops ~f:(fun reg mem ->
@@ -45,7 +42,6 @@ struct
         let mem = MM.of_mem mem in
         Ok [MM.load mem ~size:(RR.width reg) |>
             RR.set reg])
-      ~on_error:(Or_error.error_string "invalid operands")
 
   let movx_mr (op:movx_mr) ops =
     Operand.mr ops ~f:(fun mem reg ->
@@ -53,7 +49,6 @@ struct
         let reg = RR.of_mc_exn reg in
         Ok [RR.get reg |>
             MM.store mem ~size:(RR.width reg)])
-      ~on_error:(Or_error.error_string "invalid operands")
 
   let movx_oa (op:movx_oa) mem ops =
     Operand.i ops ~f:(fun off ->
@@ -70,7 +65,6 @@ struct
           RR.of_asm_exn asm in
         Ok [MM.load mem ~size:(RR.width reg) |>
             RR.set reg])
-      ~on_error:(Or_error.error_string "invalid operands")
 
   let movx_ao (op:movx_ao) mem ops =
     Operand.i ops ~f:(fun off ->
@@ -87,7 +81,6 @@ struct
           RR.of_asm_exn asm in
         Ok [RR.get reg |>
             MM.store mem ~size:(RR.width reg)])
-      ~on_error:(Or_error.error_string "invalid operands")
 
   let movx (op:Movx_opcode.t) mem ops =
     Or_error.try_with_join (fun () ->
