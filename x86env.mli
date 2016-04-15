@@ -10,7 +10,7 @@ module type S = sig
     val of_mc : Operand.reg -> t option
     val of_mc_exn : Operand.reg -> t
     val to_asm : t -> Asm.reg
-    val width : t -> [`r8 | `r16 | `r32 | `r64]
+    val width : t -> size
     val var : t -> var
     val size : [`r32 | `r64]
     val get : t -> exp
@@ -21,7 +21,7 @@ module type S = sig
   module IM : sig
     type t
     val of_imm : Operand.imm -> t
-    val get : width:([`r8 | `r16 | `r32 | `r64]) -> t -> exp
+    val get : width:size -> t -> exp
   end
 
   (** Memory model *)
@@ -30,8 +30,8 @@ module type S = sig
     val of_mem : Operand.mem -> t
     val of_offset : Operand.imm -> t
     val addr : t -> exp
-    val load : t -> size -> exp
-    val store : t -> size -> exp -> stmt
+    val load : t -> size:size -> exp
+    val store : t -> size:size -> exp -> stmt
   end
 end
 

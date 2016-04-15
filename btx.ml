@@ -48,34 +48,34 @@ struct
 
 
   let register () =
-    let set how width typ ext ops =
-      let b, off = ext ops in
-      set how width b typ off in
-    List.map ~f:(fun (op, lift) -> Backend.register op lift) [
-      `BT64rr, set nothing 64 reg Operand.rr_exn;
-      `BT32rr,   set nothing 32 reg Operand.rr_exn;
-      `BT16rr,   set nothing 16 reg Operand.rr_exn;
-      `BT64ri8,  set nothing 64 imm Operand.ri_exn;
-      `BT32ri8,  set nothing 32 imm Operand.ri_exn;
-      `BT16ri8,  set nothing 16 imm Operand.ri_exn;
-      `BTS64rr,  set one 64 reg Operand.rr_exn;
-      `BTS32rr,  set one 32 reg Operand.rr_exn;
-      `BTS16rr,  set one 16 reg Operand.rr_exn;
-      `BTS64ri8, set one 64 imm Operand.ri_exn;
-      `BTS32ri8, set one 32 imm Operand.ri_exn;
-      `BTS16ri8, set one 16 imm Operand.ri_exn;
-      `BTC64rr,  set flipped 64 reg Operand.rr_exn;
-      `BTC32rr,  set flipped 32 reg Operand.rr_exn;
-      `BTC16rr,  set flipped 16 reg Operand.rr_exn;
-      `BTC64ri8, set flipped 64 imm Operand.ri_exn;
-      `BTC32ri8, set flipped 32 imm Operand.ri_exn;
-      `BTC16ri8, set flipped 16 imm Operand.ri_exn;
-      `BTR64rr,  set zero 64 reg Operand.rr_exn;
-      `BTR32rr,  set zero 32 reg Operand.rr_exn;
-      `BTR16rr,  set zero 16 reg Operand.rr_exn;
-      `BTR64ri8, set zero 64 imm Operand.ri_exn;
-      `BTR32ri8, set zero 32 imm Operand.ri_exn;
-      `BTR16ri8, set zero 16 imm Operand.ri_exn;
+    let set how width typ xx ops =
+      xx ops ~on_error:(Or_error.error_string "unknown operands")
+        ~f:(fun b off -> Ok (set how width b typ off)) in
+    List.iter ~f:(fun (op, lift) -> Backend.register op lift) [
+      `BT64rr, set nothing 64 reg Operand.rr;
+      `BT32rr,   set nothing 32 reg Operand.rr;
+      `BT16rr,   set nothing 16 reg Operand.rr;
+      `BT64ri8,  set nothing 64 imm Operand.ri;
+      `BT32ri8,  set nothing 32 imm Operand.ri;
+      `BT16ri8,  set nothing 16 imm Operand.ri;
+      `BTS64rr,  set one 64 reg Operand.rr;
+      `BTS32rr,  set one 32 reg Operand.rr;
+      `BTS16rr,  set one 16 reg Operand.rr;
+      `BTS64ri8, set one 64 imm Operand.ri;
+      `BTS32ri8, set one 32 imm Operand.ri;
+      `BTS16ri8, set one 16 imm Operand.ri;
+      `BTC64rr,  set flipped 64 reg Operand.rr;
+      `BTC32rr,  set flipped 32 reg Operand.rr;
+      `BTC16rr,  set flipped 16 reg Operand.rr;
+      `BTC64ri8, set flipped 64 imm Operand.ri;
+      `BTC32ri8, set flipped 32 imm Operand.ri;
+      `BTC16ri8, set flipped 16 imm Operand.ri;
+      `BTR64rr,  set zero 64 reg Operand.rr;
+      `BTR32rr,  set zero 32 reg Operand.rr;
+      `BTR16rr,  set zero 16 reg Operand.rr;
+      `BTR64ri8, set zero 64 imm Operand.ri;
+      `BTR32ri8, set zero 32 imm Operand.ri;
+      `BTR16ri8, set zero 16 imm Operand.ri;
     ]
 end
 
@@ -83,6 +83,5 @@ module IA32 = Make (X86_cpu.IA32) (X86env.IA32) (X86backend.IA32)
 module AMD64 = Make (X86_cpu.AMD64) (X86env.AMD64) (X86backend.AMD64)
 
 let register () =
-  Or_error.combine_errors_unit
-    (IA32.register () @
-     AMD64.register ())
+  IA32.register ();
+  AMD64.register ()

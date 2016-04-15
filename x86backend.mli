@@ -1,21 +1,7 @@
 open Core_kernel.Std
 open Bap.Std
 
-module type S = sig
-  val register : Opcode.t ->
-    (op array -> bil) -> unit Or_error.t
-
-  val register_all :
-    Opcode.t list ->
-    (Opcode.t -> op array -> bil) ->
-    unit Or_error.t
-
-  val lift : Opcode.t -> op array -> bil Or_error.t
-end
-
-module type R = sig
-  val register: unit -> unit Or_error.t
-end
+include module type of X86backend_types
 
 module IA32 : S
 module AMD64 : S

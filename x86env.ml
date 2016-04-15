@@ -10,7 +10,7 @@ module type S = sig
     val of_mc : Operand.reg -> t option
     val of_mc_exn : Operand.reg -> t
     val to_asm : t -> Asm.reg
-    val width : t -> [`r8 | `r16 | `r32 | `r64] Size.p
+    val width : t -> size
     val var : t -> var
     val size : [`r32 | `r64] Size.p (* GPR size *)
     val get : t -> exp
@@ -21,7 +21,7 @@ module type S = sig
   module IM : sig
     type t
     val of_imm : Operand.imm -> t
-    val get : width:([`r8 | `r16 | `r32 | `r64] Size.p) -> t -> exp
+    val get : width:size -> t -> exp
   end
 
   (** Memory model *)
@@ -30,8 +30,8 @@ module type S = sig
     val of_mem : Operand.mem -> t
     val of_offset : Operand.imm -> t
     val addr : t -> exp
-    val load : t -> size -> exp
-    val store : t -> size -> exp -> stmt
+    val load : t -> size:size -> exp
+    val store : t -> size:size -> exp -> stmt
   end
 end
 
@@ -125,7 +125,7 @@ module Make(CPU : X86CPU) : S = struct
   module IM = struct
     type t = Operand.imm
     let of_imm imm = imm
-    let get ~(width:[`r8 | `r16 | `r32 | `r64] Size.p) t =
+    let get ~width t =
       Imm.to_word t ~width:(Size.in_bits width) |>
       Option.value_exn |>
       Bil.int
@@ -214,12 +214,12 @@ module Make(CPU : X86CPU) : S = struct
       Variants.map ~segment:(fun _ -> addr_from_segment)
         ~offset:(fun _ -> addr_from_offset)
 
-    let load t size =
+    let load t ~size =
       let addr = addr t in
       let mem = Bil.var CPU.mem in
       Bil.load ~mem ~addr LittleEndian size
 
-    let store t size data =
+    let store t ~size data =
       let addr = addr t in
       let mem = Bil.var CPU.mem in
       Bil.(CPU.mem := store ~mem ~addr data LittleEndian size)

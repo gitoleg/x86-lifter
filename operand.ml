@@ -57,25 +57,51 @@ module Decoder = struct
     finish ops (op1, op2, op3)
 end
 
+let r ops ~on_error ~f =
+  let open Option in
+  Decoder.(unary r) ops >>| f |>value ~default:on_error
 
-let rr = Decoder.(binary r r)
-let ri = Decoder.(binary r i)
-let rm = Decoder.(binary r m)
-let mr = Decoder.(binary m r)
-let mi = Decoder.(binary m i)
+let i ops ~on_error ~f =
+  let open Option in
+  Decoder.(unary i) ops >>| f |>value ~default:on_error
 
-let rr_exn ops = rr ops |> Option.value_exn
-let ri_exn ops = ri ops |> Option.value_exn
-let rm_exn ops = rm ops |> Option.value_exn
-let mr_exn ops = mr ops |> Option.value_exn
-let mi_exn ops = mi ops |> Option.value_exn
+let m ops ~on_error ~f =
+  let open Option in
+  Decoder.(unary m) ops >>| f |>value ~default:on_error
 
-let r = Decoder.(unary r)
-let i = Decoder.(unary i)
-let m = Decoder.(unary m)
+let b parse ops ~on_error ~f =
+  let open Option in
+  parse ops >>= (fun (op1, op2) -> f op1 op2) |> value
 
-let r_exn ops = r ops |> Option.value_exn
-let i_exn ops = i ops |> Option.value_exn
-let m_exn ops = m ops |> Option.value_exn
+let rr ops ~on_error ~f = 
+  let open Option in
+  Decoder.(binary r r) ops >>|
+  (fun (op1, op2) -> f op1 op2) |>
+  value ~default:on_error
+
+let ri ops ~on_error ~f = 
+  let open Option in
+  Decoder.(binary r i) ops >>|
+  (fun (op1, op2) -> f op1 op2) |>
+  value ~default:on_error
+
+let rm ops ~on_error ~f = 
+  let open Option in
+  Decoder.(binary r m) ops >>|
+  (fun (op1, op2) -> f op1 op2) |>
+  value ~default:on_error
+
+let mr ops ~on_error ~f = 
+  let open Option in
+  Decoder.(binary m r) ops >>|
+  (fun (op1, op2) -> f op1 op2) |>
+  value ~default:on_error
+
+let mi ops ~on_error ~f = 
+  let open Option in
+  Decoder.(binary m i) ops >>|
+  (fun (op1, op2) -> f op1 op2) |>
+  value ~default:on_error
+
 
 

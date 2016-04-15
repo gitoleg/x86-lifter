@@ -59,12 +59,10 @@ module AMD64 = Make (X86_cpu.AMD64) (X86backend.AMD64)
 let () =
   List.iter ~f:(fun m ->
       let module M = (val m : X86backend.R) in
-      match M.register () with
-      | Ok _ -> ()
-      | Error err -> Format.printf "register fail %a" Error.pp err)
+      M.register ())
     [ (module Movx : X86backend.R);
       (module Btx : X86backend.R) ]
-         
+
 
 type lifter =
   (mem * Disasm_expert.Basic.full_insn) list ->

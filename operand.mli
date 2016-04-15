@@ -23,24 +23,12 @@ module Decoder : sig
   val ternary : 'a t -> 'b t -> 'c t -> op array -> ('a * 'b * 'c) option
 end
 
-val r : op array -> reg option
-val i : op array -> imm option
-val m : op array -> mem option
+val r : op array -> on_error:'a -> f:(reg -> 'a) -> 'a
+val i : op array -> on_error:'a -> f:(imm -> 'a) -> 'a
+val m : op array -> on_error:'a -> f:(mem -> 'a) -> 'a
 
-val r_exn : op array -> reg
-val i_exn : op array -> imm
-val m_exn : op array -> mem
-
-val rr : op array -> (reg * reg) option
-val ri : op array ->  (reg * imm) option
-val rm : op array ->  (reg * mem) option
-val mr : op array ->  (mem * reg) option
-val mi : op array ->  (mem * imm) option
-
-val rr_exn : op array -> reg * reg
-val ri_exn : op array -> reg * imm
-val rm_exn : op array -> reg * mem
-val mr_exn : op array -> mem * reg
-val mi_exn : op array -> mem * imm
-
-
+val rr : op array -> on_error:'a -> f:(reg -> reg -> 'a) -> 'a
+val ri : op array -> on_error:'a -> f:(reg -> imm -> 'a ) -> 'a
+val rm : op array -> on_error:'a -> f:(reg -> mem -> 'a) -> 'a
+val mr : op array -> on_error:'a -> f:(mem -> reg -> 'a) -> 'a
+val mi : op array -> on_error:'a -> f:(mem -> imm -> 'a) -> 'a
