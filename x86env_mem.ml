@@ -41,7 +41,7 @@ module Make (CPU : X86CPU) (RR : RR) (IM : IM) : MM = struct
 
     let addr ({seg; base; scale; index; disp} as t) =
       let seg = Option.map ~f:(fun s ->
-          Error.failwiths "segment memory model not implemented yet"
+          Error.failwiths "segment memory model is not implemented"
             s RR.sexp_of_t) seg in
       let base = make_value base |> Option.some in
       let scale = Option.value_map
@@ -63,30 +63,26 @@ module Make (CPU : X86CPU) (RR : RR) (IM : IM) : MM = struct
       Option.value_exn (seg + base + scale*index + disp)
   end
 
-  module Absolute = struct
+  module Relative = struct
     type t = {
-      pc : addr option;
+      pc : addr;
       off : IM.t;
     } [@@ deriving fields]
 
     let create mem off =
       Fields.create
-        ~pc:(match CPU.arch with
-              | `x86 -> Memory.max_addr mem |> Option.some
-              | `x86_64 -> None)
+        ~pc:(Memory.max_addr mem)
         ~off:(IM.of_imm off)
 
     let addr {pc; off} =
       let size = Arch.addr_size (CPU.arch :> arch) in
       let off = IM.get off ~width:(size :> size) in
-      match pc with
-      | Some pc -> Bil.(int pc + off)
-      | None -> off
+      Bil.(int pc + off)
   end
 
   type t =
     | Segment of Segment.t
-    | Absolute of Absolute.t
+    | Relative of Relative.t
     [@@ deriving variants]
 
 
@@ -94,11 +90,11 @@ module Make (CPU : X86CPU) (RR : RR) (IM : IM) : MM = struct
     Segment.create mem |> segment
 
   let of_offset mem imm =
-    Absolute.create mem imm |> absolute
+    Relative.create mem imm |> relative
 
   let addr =
     Variants.map ~segment:(fun _ -> Segment.addr)
-      ~absolute:(fun _ -> Absolute.addr)
+      ~relative:(fun _ -> Relative.addr)
 
   let load t ~size =
     let addr = addr t in
