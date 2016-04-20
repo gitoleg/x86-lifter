@@ -92,5 +92,5 @@ type add_mem = [ add_mr | add_mi | add_mi_width ]
 type t32 = [ add_reg32 | add_mem32 ]
   [@@deriving bin_io, compare, enumerate, sexp]
 
-type t = [ add_reg | add_mem ]
+type t64 = [ add_reg | add_mem ]
   [@@deriving bin_io, compare, enumerate, sexp]

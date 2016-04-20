@@ -60,7 +60,9 @@ let () =
   List.iter ~f:(fun m ->
       let module M = (val m : X86backend.R) in
       M.register ())
-    [ (module Movx : X86backend.R);
+    [ (module Addx.Add32 : X86backend.R);
+      (module Addx.Add64 : X86backend.R);
+      (module Movx : X86backend.R);
       (module Btx : X86backend.R) ]
 
 
