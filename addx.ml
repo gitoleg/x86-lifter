@@ -1,12 +1,12 @@
 open Core_kernel.Std 
 open Bap.Std
-open Addx_opcode
 open Asm.Reg
+open Addx_opcode
 
-module Make (CPU : CPU) (Env : X86env.S) (Lifters : X86backend.S) = struct
+module Make (CPU : CPU) (Env : X86env.S) = struct
 
   open Env
-    
+
   let msb r = Bil.(cast high 1 r)
   let set_nf res = Bil.(CPU.nf := msb res)
   let set_cf res op = Bil.(CPU.cf := res < op)
@@ -77,7 +77,7 @@ module Make (CPU : CPU) (Env : X86env.S) (Lifters : X86backend.S) = struct
         let size = RR.width dst in
         let mem_exp = MM.load mem ~size in
         add size dst (RR.get src) mem_exp)
-     
+
   let add_mr (op : add_mr) ops = 
     Operand.mr ops ~f:(fun mem src ->
         let mem = MM.of_mem mem in
@@ -86,7 +86,7 @@ module Make (CPU : CPU) (Env : X86env.S) (Lifters : X86backend.S) = struct
         let mem_src = MM.load mem ~size in
         let res, flags = add_exp size mem_src (RR.get src) in
         Ok (MM.store mem ~size res :: flags))
-      
+
   let add_mi_basic mem imm width value_width = 
     let mem = MM.of_mem mem in
     let imm = exp_of_imm ~width ~value_width imm in
@@ -102,7 +102,7 @@ module Make (CPU : CPU) (Env : X86env.S) (Lifters : X86backend.S) = struct
           | `ADD16mi -> `r16 
           | `ADD8mi  -> `r8 in
         add_mi_basic mem imm width width)
-  
+
   let add_mi_width (op : add_mi_width) ops = 
     Operand.mi ops ~f:(fun mem imm ->
         let width, value_width = 
@@ -137,18 +137,26 @@ module Make (CPU : CPU) (Env : X86env.S) (Lifters : X86backend.S) = struct
         | #add_mi as op -> add_mi op ops
         | #add_mi_width as op -> add_mi_width op ops
         | #add_rax as op -> add_rax op ops)
-
-  let register () =
-    List.iter ~f:(fun op -> Lifters.register (op :> Opcode.t) (addx op))
-      Opcode.all_of_addx
-
 end
 
-module IA32 = Make (X86_cpu.IA32) (X86env.IA32) (X86backend.IA32)
-module AMD64 = Make (X86_cpu.AMD64) (X86env.AMD64) (X86backend.AMD64)
+module Add64 = struct
+  include Make (X86_cpu.AMD64) (X86env.AMD64)
+  module Backend = X86backend.AMD64
 
-let register () =
-  IA32.register ();
-  AMD64.register ()
+  let register () = 
+    List.iter ~f:(fun op -> Backend.register (op :> Opcode.t) (addx op))
+      Opcode.all_of_addx64
+end
 
-      
+module Add32 = struct
+  include Make (X86_cpu.IA32) (X86env.IA32)
+  module Backend = X86backend.IA32
+
+  let addx (op : Addx_opcode.t32) mem ops =
+    addx (op :> Addx_opcode.t) mem ops
+
+  let register () = 
+    List.iter ~f:(fun op -> Backend.register (op :> Opcode.t) (addx op))
+      Opcode.all_of_addx32
+
+end
