@@ -1,0 +1,13 @@
+movb    %al, %bl
+movb    %ah, %bh
+movb    %ah, %bl
+movb    %al, %bh
+movw    %ax, %bx
+movl    %eax, %ebx
+movq    %r10, %r12
+movb    $0x05, %al
+movb    $0x06, %ah
+movw    $0x06, %ax
+movl    $0x06, %eax
+movabsq $0xDEADBEEFBAADF00D, %r10
+movq    $-1, %r11

@@ -1,29 +1,33 @@
 open Core_kernel.Std
 open Bap.Std
-open Or_error
-
 module Dis = Disasm_expert.Basic
 
-type lifter = (mem * Dis.full_insn) list -> bil Or_error.t list
+let pp_ops fmt =
+  Array.iter ~f:(fun op ->
+      Format.fprintf fmt "@[%a@ @]" Op.pp op)
 
+let pp_insn fmt insn =
+  Format.fprintf fmt "@[%s => %s(%a)@]"
+    (Dis.Insn.asm insn)
+    (Dis.Insn.name insn)
+    pp_ops
+    (Dis.Insn.ops insn)
 
-module Lifter (Target : Target) = struct
-  open Target
+module Make (CPU : CPU) (B:X86backend.S) = struct
+  module CPU = CPU
 
-  module Btx = Btx.Reg(Target)
+  let lift mem insn =
+    let ops = Dis.Insn.ops insn in
+    match Opcode.decode insn with
+    | Some op -> B.lift op mem ops
+    | None -> Format.asprintf "unsupported instruction %a"
+                pp_insn insn |>
+              Or_error.error_string
 
-  type obil = bil Or_error.t
-
-  let lift mem insn = match Decode.opcode insn with
-    | Some (#Opcode.btx_reg as op) ->
-      Ok (Btx.lift op (Dis.Insn.ops insn))
-    | Some op -> Ok [Bil.special "unsupported instruction"]
-    | None -> lift mem insn
-
-  let lift_insns insns : obil list =
+  let lift_insns insns =
     let rec process acc = function
       | [] -> (List.rev acc)
-      | (mem,x) :: xs -> match Decode.prefix x with
+      | (mem,x) :: xs -> match Prefix.decode x with
         | None ->
           let bil = match lift mem x with
             | Error _ as err -> err
@@ -31,7 +35,7 @@ module Lifter (Target : Target) = struct
           process (bil::acc) xs
         | Some pre -> match xs with
           | [] ->
-            let bil = error "trail prefix" pre Opcode.sexp_of_prefix in
+            let bil = error "trail prefix" pre Prefix.sexp_of_t in
             process (bil::acc) []
           | (mem,y) :: xs ->
             let bil = match lift mem y with
@@ -48,12 +52,21 @@ module Lifter (Target : Target) = struct
     process [] insns
 end
 
-module IA32 = (val target_of_arch `x86)
+module IA32 = Make (X86_cpu.IA32) (X86backend.IA32)
+module AMD64 = Make (X86_cpu.AMD64) (X86backend.AMD64)
 
-module AMD64 = (val target_of_arch `x86_64)
 
-module X32 = Lifter(IA32)
-module X64 = Lifter(AMD64)
+let () =
+  List.iter ~f:(fun m ->
+      let module M = (val m : X86backend.R) in
+      M.register ())
+    [ (module Movx : X86backend.R);
+      (module Btx : X86backend.R) ]
 
-let x32 = X32.lift_insns
-let x64 = X64.lift_insns
+
+type lifter =
+  (mem * Disasm_expert.Basic.full_insn) list ->
+  bil Or_error.t list
+
+let ia32 = IA32.lift_insns
+let amd64 = AMD64.lift_insns
