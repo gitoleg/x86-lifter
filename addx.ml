@@ -3,13 +3,13 @@ open Bap.Std
 open Addx_opcode
 open Asm.Reg
 
-
-module Make  (CPU : CPU) (Env : X86env.S) (Lifters : X86backend.S) = struct
+module Make (CPU : CPU) (Env : X86env.S) (Lifters : X86backend.S) = struct
 
   open Env
-      
+    
   let msb r = Bil.(cast high 1 r)
   let set_nf res = Bil.(CPU.nf := msb res)
+  let set_cf res op = Bil.(CPU.cf := res < op)
 
   let set_vf res op op' =
     Bil.(CPU.vf := msb (lnot (op lxor op')) land (op lxor res))
@@ -17,13 +17,11 @@ module Make  (CPU : CPU) (Env : X86env.S) (Lifters : X86backend.S) = struct
   let set_zf width res =
     Bil.(CPU.zf := res = int (Word.zero width))
 
-  let set_nvzf width res op op' = 
-    [set_vf res op op';
-     set_nf res;
-     set_zf width res;]
-
-  let set_flags width res op op' =
-    Bil.(CPU.cf := res < op) :: set_nvzf width res op op'
+  let set_flags width res op op' = 
+    [ set_cf res op;
+      set_vf res op op';
+      set_nf res;
+      set_zf width res;]
 
   let exp_of_imm ~width ~value_width imm = 
     let imm = IM.of_imm imm in
@@ -122,7 +120,7 @@ module Make  (CPU : CPU) (Env : X86env.S) (Lifters : X86backend.S) = struct
           | `ADD64i32 -> `RAX, `r32
           | `ADD32i32 -> `EAX, `r32
           | `ADD16i16 -> `AX, `r16
-          | `ADD8i8 -> `AL, `r8 in
+          | `ADD8i8   -> `AL, `r8 in
         let dst' = RR.of_asm_exn dst in
         let width = RR.width dst' in
         let imm = exp_of_imm ~width ~value_width imm in
