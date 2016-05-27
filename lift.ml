@@ -13,8 +13,8 @@ let pp_insn fmt insn =
     pp_ops
     (Dis.Insn.ops insn)
 
-module Make (CPU : CPU) (B:X86backend.S) = struct
-  module CPU = CPU
+module Make (Env : X86env.S) (B:X86backend.S) = struct
+  module P = Prefix.Lifter(Env)
 
   let lift ?on_unsupported mem insn =
     let ops = Dis.Insn.ops insn in
@@ -45,20 +45,13 @@ module Make (CPU : CPU) (B:X86backend.S) = struct
           | (mem,y) :: xs ->
             let bil = match lift ?on_unsupported mem y with
               | Error _ as err -> err
-              | Ok bil -> match pre with
-                | `REP_PREFIX ->
-                  Ok [Bil.(while_ (var CPU.zf) bil)]
-                | `REPNE_PREFIX ->
-                  Ok [Bil.(while_ (lnot (var CPU.zf)) bil)]
-                | `LOCK_PREFIX -> Ok (Bil.special "lock" :: bil)
-                | `DATA16_PREFIX -> Ok (Bil.special "data16" :: bil)
-                | `REX64_PREFIX -> Ok (Bil.special "rex64" :: bil) in
+              | Ok bil -> P.lift pre (Opcode.decode y) bil in
             process (bil::acc) xs in
     process [] insns
 end
 
-module IA32 = Make (X86_cpu.IA32) (X86backend.IA32)
-module AMD64 = Make (X86_cpu.AMD64) (X86backend.AMD64)
+module IA32 = Make (X86env.IA32) (X86backend.IA32)
+module AMD64 = Make (X86env.AMD64) (X86backend.AMD64)
 
 
 let () =

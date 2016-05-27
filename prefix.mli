@@ -13,3 +13,7 @@ type t = [
 include Regular with type t := t
 
 val decode : Disasm_expert.Basic.full_insn -> t option
+
+module Lifter (Env : X86env.S) : sig
+  val lift : t -> Opcode.t option -> bil -> bil Or_error.t
+end
