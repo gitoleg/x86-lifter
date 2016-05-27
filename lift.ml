@@ -1,40 +1,49 @@
 open Core_kernel.Std
 open Bap.Std
-open Or_error
-
 module Dis = Disasm_expert.Basic
 
-type lifter = (mem * Dis.full_insn) list -> bil Or_error.t list
+let pp_ops fmt =
+  Array.iter ~f:(fun op ->
+      Format.fprintf fmt "@[%a@ @]" Op.pp op)
 
+let pp_insn fmt insn =
+  Format.fprintf fmt "@[%s => %s(%a)@]"
+    (Dis.Insn.asm insn)
+    (Dis.Insn.name insn)
+    pp_ops
+    (Dis.Insn.ops insn)
 
-module Lifter (Target : Target) = struct
-  open Target
+module Make (CPU : CPU) (B:X86backend.S) = struct
+  module CPU = CPU
 
-  module Btx = Btx.Reg(Target)
+  let lift ?on_unsupported mem insn =
+    let ops = Dis.Insn.ops insn in
+    Opcode.decode insn |>
+    Option.value_map
+      ~default:(Format.asprintf "unsupported instruction %a"
+                  pp_insn insn |>
+                Or_error.error_string)
+      ~f:(fun op -> B.lift op mem ops) |> function
+    | Ok _ as r -> r
+    | Error _ as err -> Option.value_map on_unsupported
+                          ~default:err
+                          ~f:(fun lifter -> lifter mem insn)
 
-  type obil = bil Or_error.t
-
-  let lift mem insn = match Decode.opcode insn with
-    | Some (#Opcode.btx_reg as op) ->
-      Ok (Btx.lift op (Dis.Insn.ops insn))
-    | Some op -> Ok [Bil.special "unsupported instruction"]
-    | None -> lift mem insn
-
-  let lift_insns insns : obil list =
+  let lift_insns ?on_unsupported insns =
     let rec process acc = function
       | [] -> (List.rev acc)
-      | (mem,x) :: xs -> match Decode.prefix x with
+      | (mem,x) :: xs -> match Prefix.decode x with
         | None ->
-          let bil = match lift mem x with
+          let bil = match lift ?on_unsupported mem x with
             | Error _ as err -> err
             | Ok bil -> Ok bil in
           process (bil::acc) xs
         | Some pre -> match xs with
           | [] ->
-            let bil = error "trail prefix" pre Opcode.sexp_of_prefix in
+            let bil = error "trail prefix" pre Prefix.sexp_of_t in
             process (bil::acc) []
           | (mem,y) :: xs ->
-            let bil = match lift mem y with
+            let bil = match lift ?on_unsupported mem y with
               | Error _ as err -> err
               | Ok bil -> match pre with
                 | `REP_PREFIX ->
@@ -48,8 +57,22 @@ module Lifter (Target : Target) = struct
     process [] insns
 end
 
-let lifter_of_arch arch =
-  let module X86Target =
-    (val target_of_arch (arch : Arch.x86 :> arch)) in
-  let module X86Lifter = Lifter(X86Target) in
-  X86Lifter.lift_insns
+module IA32 = Make (X86_cpu.IA32) (X86backend.IA32)
+module AMD64 = Make (X86_cpu.AMD64) (X86backend.AMD64)
+
+
+let () =
+  List.iter ~f:(fun m ->
+      let module M = (val m : X86backend.R) in
+      M.register ())
+    [ (module Mov : X86backend.R);
+      (module Btx : X86backend.R);
+      (module Cmpxchg : X86backend.R) ]
+
+
+type x86_lifter =
+  (mem * Disasm_expert.Basic.full_insn) list ->
+  bil Or_error.t list
+
+let ia32 = IA32.lift_insns
+let amd64 = AMD64.lift_insns

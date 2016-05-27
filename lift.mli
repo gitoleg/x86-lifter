@@ -1,7 +1,9 @@
 open Core_kernel.Std
 open Bap.Std
 
-type lifter = (mem * Disasm_expert.Basic.full_insn) list -> bil Or_error.t list
+type x86_lifter =
+  (mem * Disasm_expert.Basic.full_insn) list ->
+  bil Or_error.t list
 
-
-val lifter_of_arch : Arch.x86 -> lifter
+val ia32 : ?on_unsupported:lifter -> x86_lifter
+val amd64 : ?on_unsupported:lifter -> x86_lifter 

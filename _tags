@@ -1,1 +1,3 @@
 true: package(bap-x86-cpu), package(bap.disasm)
+<opcode.cmi> or <opcode.cmx> or <prefix.cmi> or <prefix.cmx>: pp(ppx-jane -dump-ast)
+<main*> : package(cmdliner)
