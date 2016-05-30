@@ -30,7 +30,7 @@ module Make (Env : X86env.S) = struct
           let sub = Bil.(v := RR.get rax - RR.get fst) in
           let flags = FR.after_sub ~diff:(Bil.var v)
               ~op1:(RR.get rax) ~op2:(RR.get fst) size in
-          let cmpxchg = Bil.(if_ (FR.get `ZF)
+          let cmpxchg = Bil.(if_ (RR.get rax = RR.get fst)
                                ([RR.get snd |> RR.set fst])
                                ([RR.get fst |> RR.set rax])) in
           List.concat [sub::flags; [cmpxchg]] in
@@ -50,7 +50,7 @@ module Make (Env : X86env.S) = struct
           let sub = Bil.(v := RR.get rax - var d) in
           let flags = FR.after_sub ~diff:(Bil.var v)
               ~op1:(RR.get rax) ~op2:(Bil.var d) size in
-          let cmpxchg = Bil.(if_ (FR.get `ZF)
+          let cmpxchg = Bil.(if_ (RR.get rax = var d)
                                ([RR.get snd |> MM.store fst ~size])
                                ([RR.set rax (Bil.var d)])) in
           List.concat[load::sub::flags; [cmpxchg]] in
