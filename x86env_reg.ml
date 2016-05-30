@@ -19,11 +19,17 @@ module Make(CPU : X86CPU) : RR = struct
 
   let of_mc_exn reg = of_mc reg |> Option.value_exn
 
-  let of_mc reg = Option.try_with (fun () -> of_mc_exn reg)
-
   let to_asm t = t
 
-  let width t = Asm.Reg.width (t :> Asm.Reg.t)
+  let size = match CPU.arch with `x86 -> `r32 | `x86_64 -> `r64
+
+  let bitsize = size |> Size.in_bits
+
+  let width t = match t with
+    | #Asm.Reg.gpr as r -> Asm.Reg.width r
+    | #Asm.Reg.segment_base -> size
+
+  let bitwidth t = width t |> Size.in_bits
 
   let var_all = function
     | `AL | `AH | `AX | `EAX | `RAX -> CPU.rax
@@ -42,15 +48,13 @@ module Make(CPU : X86CPU) : RR = struct
     | `R13B | `R13W | `R13D | `R13 -> CPU.r.(5)
     | `R14B | `R14W | `R14D | `R14 -> CPU.r.(6)
     | `R15B | `R15W | `R15D | `R15 -> CPU.r.(7)
+    | `FS_BASE -> CPU.fs_base
+    | `GS_BASE -> CPU.gs_base
 
   let var t =
     if CPU.avaliable t then var_all t
     else Error.failwiths "invalid reg variable"
-        t Asm.Reg.sexp_of_gpr
-
-  let size = match CPU.arch with `x86 -> `r32 | `x86_64 -> `r64
-
-  let bitsize = size |> Size.in_bits
+        t Asm.sexp_of_reg
 
   let bvar r = var r |> Bil.var
 
@@ -60,8 +64,8 @@ module Make(CPU : X86CPU) : RR = struct
     match r, CPU.arch with
     | #Reg.r8h, _ -> Bil.(extract ~hi:15 ~lo:8 v)
     | #Reg.r8l, _ | #Reg.r16, _ | #Reg.r32, `x86_64 ->
-      Bil.(cast low (Reg.bitwidth (r :> Asm.Reg.t)) v)
-    | #Reg.r32, `x86 | #Reg.r64, _ -> v
+      Bil.(cast low (bitwidth r) v)
+    | #Reg.r32, `x86 | #Reg.r64, _ | #Reg.segment_base, _ -> v
 
   let set r e =
     let open Asm in
@@ -73,11 +77,11 @@ module Make(CPU : X86CPU) : RR = struct
         let hp = bitsize - 16 in
         Bil.((cast high hp v) ^ e ^ (cast low 8 v))
       | #Reg.r8l, _ | #Reg.r16, _ ->
-        let hp = bitsize - Reg.bitwidth (r :> Asm.Reg.t) in
+        let hp = bitsize - bitwidth r in
         Bil.((cast high hp v) ^ e)
       | #Reg.r32, `x86_64 -> Bil.(cast unsigned bitsize e)
-      | #Reg.r32, `x86 | #Reg.r64, `x86_64 -> e
+      | #Reg.r32, `x86 | #Reg.r64, `x86_64 | #Reg.segment_base, _ -> e
       | #Reg.r64, `x86 -> Error.failwiths "invalid reg"
-                            r Asm.Reg.sexp_of_gpr in
+                            r Asm.sexp_of_reg in
     Bil.(lhs := rhs)
 end

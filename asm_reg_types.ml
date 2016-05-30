@@ -42,6 +42,16 @@ type ip = [
   | `RIP
 ] [@@deriving sexp]
 
+type segment = [
+  | `FS
+  | `GS
+] [@@deriving sexp]
+
+type segment_base = [
+  | `FS_BASE
+  | `GS_BASE
+] [@@deriving sexp]
+
 type gpr = [
   | r8
   | r16
@@ -52,4 +62,6 @@ type gpr = [
 type t = [
   | gpr
   | ip
+  | segment
+  | segment_base
 ] [@@deriving sexp]

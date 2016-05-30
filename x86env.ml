@@ -19,6 +19,7 @@ module IA32CPU : X86CPU = struct
    | `DI | `SI | `BP | `SP
    | `EAX | `EBX | `ECX | `EDX
    | `EDI | `ESI | `EBP | `ESP
+   | Asm.Reg.segment_base
  ]
 
  let arch = `x86

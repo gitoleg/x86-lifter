@@ -3,6 +3,6 @@ open Bap.Std
 
 include module type of Asm_reg_types
 
-val width : t -> size
-val bitwidth : t -> int
+val width : [gpr | ip] -> size
+val bitwidth : [gpr | ip] -> int
 val decode : reg -> t option

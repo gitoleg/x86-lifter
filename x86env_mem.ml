@@ -15,6 +15,7 @@ module Make (CPU : X86CPU) (RR : RR) (IM : IM) : MM = struct
         match Asm.Reg.decode base |> Option.value_exn with
         | #Asm.reg -> RR.of_mc_exn base |> gpr
         | `IP | `EIP | `RIP -> Memory.max_addr mem |> Word.succ |> ip
+        | b -> Error.failwiths "invalid base" b Asm.Reg.sexp_of_t
 
     end
 
@@ -27,7 +28,13 @@ module Make (CPU : X86CPU) (RR : RR) (IM : IM) : MM = struct
     } [@@ deriving fields, sexp]
 
     let create mem mo =
-      Fields.create ~seg:(RR.of_mc mo.Operand.seg)
+      let seg = match Asm.Reg.decode mo.Operand.seg with
+        | None -> None
+        | Some `FS -> RR.of_asm_exn `FS_BASE |> Option.some
+        | Some `GS -> RR.of_asm_exn `GS_BASE |> Option.some
+        | Some r -> Error.failwiths "invalid segment" r
+                      Asm.Reg.sexp_of_t in
+      Fields.create ~seg
         ~base:(Base.create mem mo.Operand.base)
         ~scale:(Imm.to_int mo.Operand.scale)
         ~index:(RR.of_mc mo.Operand.index)
@@ -41,7 +48,8 @@ module Make (CPU : X86CPU) (RR : RR) (IM : IM) : MM = struct
       | #Reg.r16, _
       | #Reg.r32, `x86_64 -> (RR.get reg |> Bil.(cast unsigned size))
       | #Reg.r32, `x86
-      | #Reg.r64, _ -> RR.get reg
+      | #Reg.r64, _
+      | #Reg.segment_base, _ -> RR.get reg
 
     let make_scale scale =
       let shift = match scale with
@@ -59,9 +67,7 @@ module Make (CPU : X86CPU) (RR : RR) (IM : IM) : MM = struct
           Bil.int)
 
     let addr {seg; base; scale; index; disp} =
-      let seg = Option.map ~f:(fun s ->
-          Error.failwiths "segment memory model is not implemented"
-            s RR.sexp_of_t) seg in
+      let seg = Option.map ~f:(fun seg -> make_value seg) seg in
       let base = match base with
         | Base.GPR base -> make_value base |> Option.some
         | Base.IP word -> Bil.int word |> Option.some in
