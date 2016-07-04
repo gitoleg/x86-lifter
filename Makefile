@@ -8,4 +8,4 @@ install:
 	bapbundle install newX86.plugin
 
 uninstall:
-	bapbundle uninstall newX86.plugin
+	bapbundle remove newX86.plugin
